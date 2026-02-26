@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:CaddyApp}",
+            "name": "Debug CaddyApp",
+            "target": "CaddyApp",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug CaddyApp"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:CaddyApp}",
+            "name": "Release CaddyApp",
+            "target": "CaddyApp",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release CaddyApp"
+        }
+    ]
+}
