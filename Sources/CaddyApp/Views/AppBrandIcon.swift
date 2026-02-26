@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct AppBrandIcon: View {
     var size: CGFloat = 40
@@ -65,6 +66,20 @@ struct AppBrandIcon: View {
 
 struct MenuBarSystrayIcon: View {
     var body: some View {
+        Group {
+            if let image = Self.menuBarColorImage {
+                Image(nsImage: image)
+            } else if let image = Self.menuBarTemplateImage {
+                Image(nsImage: image)
+            } else {
+                fallbackVectorIcon
+            }
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityLabel("CaddyApp")
+    }
+
+    private var fallbackVectorIcon: some View {
         ZStack {
             Circle()
                 .trim(from: 0.14, to: 0.86)
@@ -86,8 +101,45 @@ struct MenuBarSystrayIcon: View {
                 .frame(width: 3.2, height: 3.2)
                 .offset(x: 5.2)
         }
-        .frame(width: 18, height: 18)
         .compositingGroup()
-        .accessibilityLabel("CaddyApp")
     }
+
+    private static let menuBarTemplateImage: NSImage? = {
+        guard let url = Bundle.module.url(forResource: "SystrayIconTemplate", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else {
+            return nil
+        }
+
+        image.isTemplate = true
+        return image
+    }()
+
+    private static let menuBarColorImage: NSImage? = {
+        guard let url = Bundle.module.url(forResource: "AppIcon-preview", withExtension: "png"),
+              let sourceImage = NSImage(contentsOf: url) else {
+            return nil
+        }
+
+        let canvasSize = NSSize(width: 18, height: 18)
+        let drawSize = NSSize(width: 14, height: 14)
+        let drawOrigin = NSPoint(
+            x: (canvasSize.width - drawSize.width) / 2,
+            y: (canvasSize.height - drawSize.height) / 2
+        )
+
+        let rendered = NSImage(size: canvasSize)
+        rendered.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        sourceImage.draw(
+            in: NSRect(origin: drawOrigin, size: drawSize),
+            from: NSRect(origin: .zero, size: sourceImage.size),
+            operation: .sourceOver,
+            fraction: 1
+        )
+        rendered.unlockFocus()
+
+        rendered.isTemplate = false
+        rendered.size = canvasSize
+        return rendered
+    }()
 }

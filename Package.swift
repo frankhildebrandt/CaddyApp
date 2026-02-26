@@ -12,7 +12,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CaddyApp",
-            path: "Sources/CaddyApp"
+            path: "Sources/CaddyApp",
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )
