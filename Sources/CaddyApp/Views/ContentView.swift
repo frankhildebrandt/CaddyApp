@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.openURL) private var openURL
     private enum SidebarTab: String, CaseIterable, Identifiable {
         case dashboard
         case caddyTLS = "caddy_tls"
@@ -134,8 +135,9 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("CaddyApp")
-                        .font(.largeTitle.bold())
+                        .font(.title.bold())
                     Text("macOS control panel for Caddy, localhost reverse proxies, AutoTLS and runtime discovery")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -143,20 +145,22 @@ struct ContentView: View {
             Button("In Menüleiste") {
                 AppWindowController().hideAppToMenuBar()
             }
+            .buttonStyle(.bordered)
             Toggle("Schließen versteckt", isOn: $hideWindowToMenuBarOnClose)
                 .toggleStyle(.checkbox)
             Button(viewModel.isLoading ? "Refreshing..." : "Refresh") {
                 viewModel.refresh()
             }
             .disabled(viewModel.isLoading)
+            .buttonStyle(.borderedProminent)
         }
         .padding(20)
     }
 
     private func dashboardSection(_ snapshot: DashboardSnapshot) -> some View {
         GroupBox("Dashboard") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
                     dashboardStatusCard(
                         title: "Läuft Caddy?",
                         isPositive: snapshot.caddyRuntimeStatus.isRunning,
@@ -172,23 +176,30 @@ struct ContentView: View {
                     )
                 }
 
-                Divider()
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                    dashboardMetricCard(
+                        title: "Caddy",
+                        value: snapshot.caddyInstall.isInstalled ? "Installiert" : "Nicht installiert",
+                        tone: snapshot.caddyInstall.isInstalled ? .green : .orange
+                    )
+                    dashboardMetricCard(
+                        title: "Version",
+                        value: snapshot.caddyInstall.version ?? "unknown",
+                        isMonospaced: true
+                    )
+                    dashboardMetricCard(title: "Routen", value: "\(snapshot.configPreview.routeCount)")
+                    dashboardMetricCard(title: "Targets", value: "\(snapshot.runtimeTargets.count)")
+                }
 
-                LabeledContent("Caddy installiert") {
-                    Text(snapshot.caddyInstall.isInstalled ? "Ja" : "Nein")
-                }
-                LabeledContent("Version") {
-                    Text(snapshot.caddyInstall.version ?? "unknown")
-                        .font(.system(.body, design: .monospaced))
-                }
-                LabeledContent("Routen") {
-                    Text("\(snapshot.configPreview.routeCount)")
-                }
-                LabeledContent("Runtime Targets") {
-                    Text("\(snapshot.runtimeTargets.count)")
-                }
-                LabeledContent("Snapshot") {
+                dashboardQuickAccessSection(snapshot)
+
+                HStack {
+                    Text("Snapshot")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
                     Text(snapshot.generatedAt.formatted(date: .abbreviated, time: .standard))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -220,9 +231,162 @@ struct ContentView: View {
                 .accessibilityLabel(isPositive ? "Ja" : "Nein")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(color.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(color.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func dashboardMetricCard(
+        title: String,
+        value: String,
+        tone: Color = .accentColor,
+        isMonospaced: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(isMonospaced ? .system(.body, design: .monospaced) : .body)
+                .fontWeight(.semibold)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tone.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func dashboardQuickAccessSection(_ snapshot: DashboardSnapshot) -> some View {
+        let multipassTargets = snapshot.runtimeTargets.filter { target in
+            target.source == .multipass && target.status.lowercased() == "running"
+        }
+        let podTargets = snapshot.runtimeTargets.filter { $0.source == .podman }
+
+        if !multipassTargets.isEmpty || !podTargets.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Quick Access")
+                    .font(.headline)
+
+                if !multipassTargets.isEmpty {
+                    dashboardRuntimeCardGroup(
+                        title: "Multipass VMs",
+                        icon: "shippingbox",
+                        targets: multipassTargets
+                    )
+                }
+
+                if !podTargets.isEmpty {
+                    dashboardRuntimeCardGroup(
+                        title: "Pods (Podman)",
+                        icon: "square.stack.3d.up",
+                        targets: podTargets
+                    )
+                }
+            }
+        }
+    }
+
+    private func dashboardRuntimeCardGroup(
+        title: String,
+        icon: String,
+        targets: [RuntimeTarget]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("\(title) (\(targets.count))", systemImage: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], spacing: 10) {
+                ForEach(targets) { target in
+                    dashboardRuntimeLinkCard(target)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+
+    private func dashboardRuntimeLinkCard(_ target: RuntimeTarget) -> some View {
+        let destination = runtimeDashboardURL(for: target)
+
+        return Button {
+            guard let destination else { return }
+            openURL(destination)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(target.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Text(target.source == .multipass ? "Multipass VM" : "Podman Pod")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "arrow.up.right.square")
+                        .foregroundStyle(destination == nil ? .tertiary : .secondary)
+                }
+
+                if let displayURL = runtimeDashboardURLDisplayString(for: target) {
+                    Text(displayURL)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("Kein Browser-Link verfügbar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text(target.status)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(target.address)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(destination == nil)
     }
 
     @ViewBuilder
@@ -738,6 +902,28 @@ struct ContentView: View {
         guard !label.isEmpty else { return nil }
         let truncated = String(label.prefix(63))
         return ("\(truncated).mp.localhost", "*.\(truncated).mp.localhost")
+    }
+
+    private func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {
+        switch target.source {
+        case .multipass:
+            guard let hosts = multipassAutoHosts(for: target.name) else { return nil }
+            return URL(string: "https://\(hosts.apex)")
+        case .podman:
+            if target.address.hasPrefix("http://") || target.address.hasPrefix("https://") {
+                return URL(string: target.address)
+            }
+
+            let port = target.address.split(separator: ":").last.flatMap { Int($0) }
+            let scheme = (port == 443 || port == 8443) ? "https" : "http"
+            return URL(string: "\(scheme)://\(target.address)")
+        case .manual:
+            return nil
+        }
+    }
+
+    private func runtimeDashboardURLDisplayString(for target: RuntimeTarget) -> String? {
+        runtimeDashboardURL(for: target)?.absoluteString
     }
 }
 
