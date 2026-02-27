@@ -58,6 +58,8 @@ make check
 
 ## Releases
 
+> **Hinweis:** Der Build benötigt Swift >= 6.2.3. Ältere Versionen (z. B. 6.2.0) lösen einen Swift-Compiler-Assertion-Fehler aus (`LocalDiscriminator is set multiple times`).
+
 Jeder GitHub Release loest automatisch einen CI-Build aus (`.github/workflows/release.yml`):
 
 1. `swift build -c release` baut das Release-Binary auf einem macOS-Runner.
