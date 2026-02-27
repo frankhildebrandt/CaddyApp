@@ -180,6 +180,7 @@ struct OnDemandAppDraft: Identifiable, Hashable, Codable {
     var enabled: Bool
     var startMode: OnDemandStartMode
     var runArguments: String
+    var runSteps: [String]
     var healthPath: String
 
     init(
@@ -195,6 +196,7 @@ struct OnDemandAppDraft: Identifiable, Hashable, Codable {
         enabled: Bool = true,
         startMode: OnDemandStartMode = .runCommand,
         runArguments: String,
+        runSteps: [String] = [],
         healthPath: String = "/"
     ) {
         self.id = id
@@ -209,7 +211,61 @@ struct OnDemandAppDraft: Identifiable, Hashable, Codable {
         self.enabled = enabled
         self.startMode = startMode
         self.runArguments = runArguments
+        self.runSteps = runSteps
         self.healthPath = healthPath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case runtime
+        case unitKind
+        case unitName
+        case host
+        case targetHost
+        case targetPort
+        case idleTimeoutSeconds
+        case enabled
+        case startMode
+        case runArguments
+        case runSteps
+        case healthPath
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        runtime = try container.decode(ContainerRuntimeKind.self, forKey: .runtime)
+        unitKind = try container.decode(ContainerUnitKind.self, forKey: .unitKind)
+        unitName = try container.decode(String.self, forKey: .unitName)
+        host = try container.decode(String.self, forKey: .host)
+        targetHost = try container.decode(String.self, forKey: .targetHost)
+        targetPort = try container.decode(Int.self, forKey: .targetPort)
+        idleTimeoutSeconds = try container.decode(Int.self, forKey: .idleTimeoutSeconds)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        startMode = try container.decode(OnDemandStartMode.self, forKey: .startMode)
+        runArguments = try container.decodeIfPresent(String.self, forKey: .runArguments) ?? ""
+        runSteps = try container.decodeIfPresent([String].self, forKey: .runSteps) ?? []
+        healthPath = try container.decodeIfPresent(String.self, forKey: .healthPath) ?? "/"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(runtime, forKey: .runtime)
+        try container.encode(unitKind, forKey: .unitKind)
+        try container.encode(unitName, forKey: .unitName)
+        try container.encode(host, forKey: .host)
+        try container.encode(targetHost, forKey: .targetHost)
+        try container.encode(targetPort, forKey: .targetPort)
+        try container.encode(idleTimeoutSeconds, forKey: .idleTimeoutSeconds)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(startMode, forKey: .startMode)
+        try container.encode(runArguments, forKey: .runArguments)
+        try container.encode(runSteps, forKey: .runSteps)
+        try container.encode(healthPath, forKey: .healthPath)
     }
 
     func asProxyRoute(gatewayPort: UInt16) -> ProxyRoute {
@@ -329,7 +385,13 @@ enum OnDemandAppPresetCatalog {
                 idleTimeoutSeconds: 900,
                 enabled: true,
                 startMode: .runCommand,
-                runArguments: "pod create --name caddyapp-kimai -p 8001:8001 && run -d --pod caddyapp-kimai --name caddyapp-kimai-db -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11 && run --rm --pod caddyapp-kimai --name caddyapp-kimai-db-wait mariadb:11 sh -lc 'until mariadb-admin ping -h 127.0.0.1 -u root -pkimai --silent; do sleep 2; done' && run -d --pod caddyapp-kimai --name caddyapp-kimai-app -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4&serverVersion=11.4.2-MariaDB' kimai/kimai2:apache",
+                runArguments: "",
+                runSteps: [
+                    "pod create --name caddyapp-kimai -p 8001:8001",
+                    "run -d --pod caddyapp-kimai --name caddyapp-kimai-db -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11",
+                    "run --rm --pod caddyapp-kimai --name caddyapp-kimai-db-wait mariadb:11 sh -lc 'until mariadb-admin ping -h 127.0.0.1 -u root -pkimai --silent; do sleep 2; done'",
+                    "run -d --pod caddyapp-kimai --name caddyapp-kimai-app -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4&serverVersion=11.4.2-MariaDB' kimai/kimai2:apache"
+                ],
                 healthPath: "/"
             ),
             notes: "Podman preset creates a pod with Kimai + MariaDB and waits for DB readiness before app start. Default credentials are for local dev only; change env vars before productive use."
@@ -369,7 +431,15 @@ enum OnDemandAppPresetCatalog {
                 idleTimeoutSeconds: 1800,
                 enabled: true,
                 startMode: .runCommand,
-                runArguments: "pod create --name caddyapp-penpot -p 9001:8080 && run -d --pod caddyapp-penpot --name caddyapp-penpot-postgres -e POSTGRES_INITDB_ARGS=--data-checksums -e POSTGRES_DB=penpot -e POSTGRES_USER=penpot -e POSTGRES_PASSWORD=penpot -v caddyapp-penpot-postgres:/var/lib/postgresql/data:Z postgres:15 && run -d --pod caddyapp-penpot --name caddyapp-penpot-valkey -e VALKEY_EXTRA_FLAGS='--maxmemory 128mb --maxmemory-policy volatile-lfu' valkey/valkey:8.1 && run -d --pod caddyapp-penpot --name caddyapp-penpot-backend -e PENPOT_FLAGS='disable-email-verification disable-secure-session-cookies' -e PENPOT_SECRET_KEY='caddyapp-penpot-insecure-dev-key-change-me' -e PENPOT_PUBLIC_URI='http://penpot.localhost' -e PENPOT_DATABASE_URI='postgresql://127.0.0.1/penpot' -e PENPOT_DATABASE_USERNAME=penpot -e PENPOT_DATABASE_PASSWORD=penpot -e PENPOT_REDIS_URI='redis://127.0.0.1/0' -e PENPOT_OBJECTS_STORAGE_BACKEND=fs -e PENPOT_OBJECTS_STORAGE_FS_DIRECTORY=/opt/data/assets -e PENPOT_TELEMETRY_ENABLED=true -e PENPOT_TELEMETRY_REFERER=caddyapp -v caddyapp-penpot-assets:/opt/data/assets:Z penpotapp/backend:latest && run -d --pod caddyapp-penpot --name caddyapp-penpot-exporter -e PENPOT_SECRET_KEY='caddyapp-penpot-insecure-dev-key-change-me' -e PENPOT_PUBLIC_URI='http://127.0.0.1:8080' -e PENPOT_REDIS_URI='redis://127.0.0.1/0' penpotapp/exporter:latest && run -d --pod caddyapp-penpot --name caddyapp-penpot-frontend -e PENPOT_FLAGS='disable-email-verification disable-secure-session-cookies' -e PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600 -e PENPOT_HTTP_SERVER_MAX_MULTIPART_BODY_SIZE=367001600 -v caddyapp-penpot-assets:/opt/data/assets:Z penpotapp/frontend:latest",
+                runArguments: "",
+                runSteps: [
+                    "pod create --name caddyapp-penpot -p 9001:8080",
+                    "run -d --pod caddyapp-penpot --name caddyapp-penpot-postgres -e POSTGRES_INITDB_ARGS=--data-checksums -e POSTGRES_DB=penpot -e POSTGRES_USER=penpot -e POSTGRES_PASSWORD=penpot -v caddyapp-penpot-postgres:/var/lib/postgresql/data:Z postgres:15",
+                    "run -d --pod caddyapp-penpot --name caddyapp-penpot-valkey -e VALKEY_EXTRA_FLAGS='--maxmemory 128mb --maxmemory-policy volatile-lfu' valkey/valkey:8.1",
+                    "run -d --pod caddyapp-penpot --name caddyapp-penpot-backend -e PENPOT_FLAGS='disable-email-verification disable-secure-session-cookies' -e PENPOT_SECRET_KEY='caddyapp-penpot-insecure-dev-key-change-me' -e PENPOT_PUBLIC_URI='http://penpot.localhost' -e PENPOT_DATABASE_URI='postgresql://127.0.0.1/penpot' -e PENPOT_DATABASE_USERNAME=penpot -e PENPOT_DATABASE_PASSWORD=penpot -e PENPOT_REDIS_URI='redis://127.0.0.1/0' -e PENPOT_OBJECTS_STORAGE_BACKEND=fs -e PENPOT_OBJECTS_STORAGE_FS_DIRECTORY=/opt/data/assets -e PENPOT_TELEMETRY_ENABLED=true -e PENPOT_TELEMETRY_REFERER=caddyapp -v caddyapp-penpot-assets:/opt/data/assets:Z penpotapp/backend:latest",
+                    "run -d --pod caddyapp-penpot --name caddyapp-penpot-exporter -e PENPOT_SECRET_KEY='caddyapp-penpot-insecure-dev-key-change-me' -e PENPOT_PUBLIC_URI='http://127.0.0.1:8080' -e PENPOT_REDIS_URI='redis://127.0.0.1/0' penpotapp/exporter:latest",
+                    "run -d --pod caddyapp-penpot --name caddyapp-penpot-frontend -e PENPOT_FLAGS='disable-email-verification disable-secure-session-cookies' -e PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600 -e PENPOT_HTTP_SERVER_MAX_MULTIPART_BODY_SIZE=367001600 -v caddyapp-penpot-assets:/opt/data/assets:Z penpotapp/frontend:latest"
+                ],
                 healthPath: "/"
             ),
             notes: "Uses the official Penpot multi-service container stack translated from the upstream docker-compose to a single Podman pod (first startup can take longer)."

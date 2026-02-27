@@ -592,23 +592,56 @@ actor OnDemandAppsService {
             let result = runRuntime(app, arguments: arguments)
             return mapCommandResult(result, fallback: "Failed to start \(app.unitKind.label.lowercased()) \(app.unitName)")
         case .runCommand:
-            let args = app.runArguments.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !args.isEmpty else {
-                return ActionResult(succeeded: false, message: "Run command arguments are empty")
-            }
-            let result = runner.runShell("\(app.runtime.rawValue) \(args)")
-            let mapped = mapCommandResult(result, fallback: "Failed to run start command for \(app.name)")
-            if mapped.succeeded {
-                return mapped
+            return startViaRunCommands(app)
+        }
+    }
+
+    private func startViaRunCommands(_ app: OnDemandAppDraft) -> ActionResult {
+        let runSteps = normalizedRunSteps(for: app)
+        guard !runSteps.isEmpty else {
+            return ActionResult(succeeded: false, message: "Run command arguments are empty")
+        }
+
+        var recoverableConflictSeen = false
+        var stepMessages: [String] = []
+
+        for (index, step) in runSteps.enumerated() {
+            AppLogService.logEvent("On-demand run step \(index + 1)/\(runSteps.count): app=\(app.name) command=\(app.runtime.rawValue) \(step)")
+            let result = runner.runShell("\(app.runtime.rawValue) \(step)")
+            if result.isSuccess {
+                let output = [result.stdout, result.stderr]
+                    .joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !output.isEmpty {
+                    stepMessages.append(output)
+                }
+                continue
             }
 
-            if app.unitKind == .pod {
-                return mapped
+            let detail = [result.stderr, result.stdout]
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if isRecoverableRunConflict(detail) {
+                recoverableConflictSeen = true
+                let message = detail.isEmpty ? "Resource already exists" : detail
+                stepMessages.append(message)
+                AppLogService.logEvent("On-demand run step tolerated existing-resource conflict: app=\(app.name) step=\(index + 1) detail=\(message)")
+                continue
             }
 
-            // Common preset flow: first request creates via `run -d --name ...`,
-            // later requests after idle-stop need `start <name>` because the container already exists.
-            AppLogService.logEvent("On-demand run command failed; trying existing start fallback: app=\(app.name)")
+            return ActionResult(
+                succeeded: false,
+                message: detail.isEmpty ? "Failed to run start command for \(app.name)" : detail
+            )
+        }
+
+        if isRunning(app).isRunning {
+            let combined = stepMessages.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            return ActionResult(succeeded: true, message: combined.isEmpty ? "OK" : combined)
+        }
+
+        if recoverableConflictSeen {
+            AppLogService.logEvent("On-demand run steps ended with existing-resource conflicts; trying existing start fallback: app=\(app.name)")
             let fallbackArguments: [String] = switch app.unitKind {
             case .container: ["start", app.unitName]
             case .pod: ["pod", "start", app.unitName]
@@ -619,8 +652,13 @@ actor OnDemandAppsService {
                 AppLogService.logEvent("On-demand fallback start succeeded: app=\(app.name)")
                 return fallbackMapped
             }
-            return mapped
+            return fallbackMapped
         }
+
+        return ActionResult(
+            succeeded: false,
+            message: "Start command sequence completed but \(app.unitKind.rawValue) \(app.unitName) is not running"
+        )
     }
 
     private func stop(appID: UUID, reason _: String) -> ActionResult {
@@ -704,6 +742,20 @@ actor OnDemandAppsService {
         runner.runShell(([app.runtime.rawValue] + arguments.map(shellEscapeArgument)).joined(separator: " "))
     }
 
+    private func normalizedRunSteps(for app: OnDemandAppDraft) -> [String] {
+        let legacyRunArguments = app.runArguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !legacyRunArguments.isEmpty {
+            return [legacyRunArguments]
+        }
+        let steps = app.runSteps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !steps.isEmpty {
+            return steps
+        }
+        return []
+    }
+
     private func mapCommandResult(_ result: CommandResult, fallback: String) -> ActionResult {
         if result.isSuccess {
             let output = [result.stdout, result.stderr]
@@ -746,6 +798,15 @@ actor OnDemandAppsService {
             || lowered.contains("no pod with name or id")
             || lowered.contains("could not find pod")
             || lowered.contains("not found")
+    }
+
+    private func isRecoverableRunConflict(_ message: String) -> Bool {
+        let lowered = message.lowercased()
+        return lowered.contains("already exists")
+            || lowered.contains("is in use by")
+            || lowered.contains("name is already in use")
+            || lowered.contains("already in use")
+            || lowered.contains("pod exists")
     }
 
     private func shellEscapeArgument(_ argument: String) -> String {

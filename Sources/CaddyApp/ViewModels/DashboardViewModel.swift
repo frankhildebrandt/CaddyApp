@@ -324,6 +324,9 @@ final class DashboardViewModel: ObservableObject {
             normalized.unitName = app.unitName.trimmingCharacters(in: .whitespacesAndNewlines)
             normalized.targetHost = app.targetHost.trimmingCharacters(in: .whitespacesAndNewlines)
             normalized.runArguments = app.runArguments.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.runSteps = app.runSteps
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
             normalized.healthPath = app.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
             return normalized
         }
@@ -787,8 +790,8 @@ final class DashboardViewModel: ObservableObject {
             if app.idleTimeoutSeconds < 15 { return "On-Demand App \(row): Idle Timeout muss mindestens 15 Sekunden sein." }
             if app.host.contains(where: \.isWhitespace) { return "On-Demand App \(row): Host darf keine Leerzeichen enthalten." }
             if app.targetHost.contains(where: \.isWhitespace) { return "On-Demand App \(row): Target Host darf keine Leerzeichen enthalten." }
-            if app.startMode == .runCommand && app.runArguments.isEmpty {
-                return "On-Demand App \(row): Run Arguments dürfen im Modus 'Run Command' nicht leer sein."
+            if app.startMode == .runCommand && app.runArguments.isEmpty && app.runSteps.isEmpty {
+                return "On-Demand App \(row): Run Arguments oder Run Steps dürfen im Modus 'Run Command' nicht leer sein."
             }
             if app.runtime == .docker && app.unitKind == .pod {
                 return "On-Demand App \(row): Docker unterstützt hier keine Pods. Bitte Container wählen oder Podman nutzen."

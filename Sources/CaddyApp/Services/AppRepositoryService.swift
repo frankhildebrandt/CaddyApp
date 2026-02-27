@@ -53,7 +53,8 @@ actor AppRepositoryService {
             var idleTimeoutSeconds: Int
             var enabled: Bool
             var startMode: OnDemandStartMode
-            var runArguments: String
+            var runArguments: String?
+            var runSteps: [String]?
             var healthPath: String
         }
 
@@ -184,7 +185,8 @@ actor AppRepositoryService {
                         idleTimeoutSeconds: appDocument.spec.idleTimeoutSeconds,
                         enabled: appDocument.spec.enabled,
                         startMode: appDocument.spec.startMode,
-                        runArguments: appDocument.spec.runArguments,
+                        runArguments: appDocument.spec.runArguments ?? "",
+                        runSteps: appDocument.spec.runSteps ?? [],
                         healthPath: appDocument.spec.healthPath
                     ),
                     notes: "Quelle: \(sourceName) (\(appURL.absoluteString))"
@@ -256,6 +258,13 @@ actor AppRepositoryService {
         }
         if spec.runtime == .docker && spec.unitKind == .pod {
             return false
+        }
+        if spec.startMode == .runCommand {
+            let hasRunArguments = !(spec.runArguments?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            let hasRunSteps = !(spec.runSteps ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.isEmpty
+            if !hasRunArguments, !hasRunSteps {
+                return false
+            }
         }
         return true
     }

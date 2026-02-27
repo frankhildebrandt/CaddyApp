@@ -65,3 +65,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Hardened Kimai startup preset with explicit DB-ready wait step, restart policies for app/DB containers, and MariaDB serverVersion in `DATABASE_URL`; increased Kimai warm-up timeout to 240s.
 - 2026-02-27: Fixed pod start fallback for failed multi-step `runArguments`: pod-based apps now return the original start error instead of falling back to `pod start` (which could leave only an infra container running).
 - 2026-02-27: Added Penpot preset (local catalog + YAML repository) using an official multi-service stack translated to a Podman pod (`frontend`, `backend`, `exporter`, `postgres`, `valkey`).
+- 2026-02-27: Reworked pod deployment execution to use explicit sequential `runSteps` (instead of single `&&` shell chains), including tolerant handling of "already exists" conflicts and controlled fallback to existing unit start.

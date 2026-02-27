@@ -1178,7 +1178,7 @@ struct ContentView: View {
             .textFieldStyle(.roundedBorder)
             .disabled(app.wrappedValue.startMode != .runCommand)
 
-            Text("Bei 'Run Command' wird `<runtime> <runArguments>` ausgeführt, falls der Container/Pod noch nicht läuft.")
+            Text("Bei 'Run Command' wird entweder `<runtime> <runArguments>` (falls gesetzt) oder eine Preset-Run-Step-Sequenz ausgeführt.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
