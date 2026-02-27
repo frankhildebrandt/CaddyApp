@@ -54,3 +54,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-26: Added WebSocket upgrade support in the on-demand gateway via bidirectional TCP tunnel after HTTP Upgrade handshake forwarding.
 - 2026-02-27: Added runtime cleanup on app deletion (`container/pod rm -f`) with tolerant handling when unit is already missing.
 - 2026-02-27: Added per-app sub-tabs for config, host log filtering, container/pod logs, interactive shell launch, and event-log view.
+- 2026-02-27: Refined On-Demand UI to an overview layout (app list + single tabbed detail view) instead of per-card tabs.

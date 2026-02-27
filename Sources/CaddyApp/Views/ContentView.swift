@@ -66,9 +66,9 @@ struct ContentView: View {
     @State private var showCaddyUpdateConfirmation = false
     @State private var showReloadConfigConfirmation = false
     @State private var selectedTab: SidebarTab? = .dashboard
-    @State private var editingOnDemandAppID: UUID?
+    @State private var selectedOnDemandAppID: UUID?
+    @State private var selectedOnDemandSubTab: OnDemandSubTab = .config
     @State private var showOnDemandPresetPicker = false
-    @State private var onDemandSelectedSubTab: [UUID: OnDemandSubTab] = [:]
     @State private var onDemandHostLogByAppID: [UUID: String] = [:]
     @State private var onDemandContainerLogByAppID: [UUID: String] = [:]
     @State private var onDemandEventLogByAppID: [UUID: String] = [:]
@@ -859,7 +859,7 @@ struct ContentView: View {
             GroupBox("On-Demand Apps") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .center, spacing: 10) {
-                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout. Jede App hat Sub-Tabs für Config, Host-Log, Container/Pod-Log, Shell und Eventlog.")
+                        Text("Übersicht links, Details rechts: Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -876,11 +876,63 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 8)
                     } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach($viewModel.onDemandApps) { $app in
-                                let runtimeStatus = statusesByID[app.id]
-                                onDemandAppCard(app: $app, runtimeStatus: runtimeStatus)
+                        HStack(alignment: .top, spacing: 12) {
+                            List(selection: $selectedOnDemandAppID) {
+                                ForEach(viewModel.onDemandApps) { app in
+                                    let runtimeStatus = statusesByID[app.id]
+                                    HStack(spacing: 8) {
+                                        Circle()
+                                            .fill(
+                                                app.enabled
+                                                    ? onDemandPhaseColor(runtimeStatus?.phase ?? .stopped)
+                                                    : .secondary
+                                            )
+                                            .frame(width: 8, height: 8)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(app.name.isEmpty ? "Neue App" : app.name)
+                                            Text(app.host)
+                                                .font(.caption2.monospaced())
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .tag(app.id)
+                                }
                             }
+                            .frame(minWidth: 260, maxWidth: 320, minHeight: 420)
+                            .onAppear {
+                                ensureValidOnDemandSelection()
+                            }
+                            .onChange(of: viewModel.onDemandApps.map(\.id)) { _, _ in
+                                ensureValidOnDemandSelection()
+                            }
+                            .onChange(of: selectedOnDemandAppID) { _, newID in
+                                guard let newID,
+                                      let app = viewModel.onDemandApps.first(where: { $0.id == newID })
+                                else { return }
+                                loadOnDemandSubTab(tab: selectedOnDemandSubTab, app: app)
+                            }
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let selectedID = selectedOnDemandAppID,
+                                   let appBinding = bindingForOnDemandApp(id: selectedID)
+                                {
+                                    let app = appBinding.wrappedValue
+                                    let runtimeStatus = statusesByID[selectedID]
+                                    onDemandAppDetail(
+                                        app: appBinding,
+                                        runtimeStatus: runtimeStatus
+                                    )
+                                    .onAppear {
+                                        loadOnDemandSubTab(tab: selectedOnDemandSubTab, app: app)
+                                    }
+                                } else {
+                                    Text("Bitte links eine App auswählen.")
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                        .padding(.top, 8)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 420, alignment: .topLeading)
                         }
                     }
 
@@ -916,16 +968,15 @@ struct ContentView: View {
         }
     }
 
-    private func onDemandAppCard(
+    private func onDemandAppDetail(
         app: Binding<OnDemandAppDraft>,
         runtimeStatus: OnDemandAppRuntimeStatus?
     ) -> some View {
         let appID = app.wrappedValue.id
-        let selectedSubTab = bindingOnDemandSubTab(appID: appID)
         let phase = runtimeStatus?.phase ?? .stopped
         let isEnabled = app.wrappedValue.enabled
 
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
@@ -977,11 +1028,7 @@ struct ContentView: View {
                         }
 
                         Button("Löschen", role: .destructive) {
-                            let id = appID
-                            if editingOnDemandAppID == id {
-                                editingOnDemandAppID = nil
-                            }
-                            viewModel.removeOnDemandApp(id: id)
+                            removeOnDemandAppAndUpdateSelection(id: appID)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -995,20 +1042,17 @@ struct ContentView: View {
                 }
             }
 
-            Picker("Sub-Tab", selection: selectedSubTab) {
+            Picker("Sub-Tab", selection: $selectedOnDemandSubTab) {
                 ForEach(OnDemandSubTab.allCases) { tab in
                     Text(tab.title).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: selectedSubTab.wrappedValue) { _, newTab in
+            .onChange(of: selectedOnDemandSubTab) { _, newTab in
                 loadOnDemandSubTab(tab: newTab, app: app.wrappedValue)
             }
-            .onAppear {
-                loadOnDemandSubTab(tab: selectedSubTab.wrappedValue, app: app.wrappedValue)
-            }
 
-            switch selectedSubTab.wrappedValue {
+            switch selectedOnDemandSubTab {
             case .config:
                 onDemandAppEditor(app: app)
             case .hostLog:
@@ -1021,7 +1065,7 @@ struct ContentView: View {
                 onDemandEventLogView(app: app.wrappedValue)
             }
         }
-        .padding(12)
+        .padding(14)
         .background(Color.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -1036,11 +1080,7 @@ struct ContentView: View {
                 TextField("Host (z. B. grafana.localhost)", text: app.host)
                     .textFieldStyle(.roundedBorder)
                 Button(role: .destructive) {
-                    let id = app.wrappedValue.id
-                    if editingOnDemandAppID == id {
-                        editingOnDemandAppID = nil
-                    }
-                    viewModel.removeOnDemandApp(id: id)
+                    removeOnDemandAppAndUpdateSelection(id: app.wrappedValue.id)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -1281,18 +1321,44 @@ struct ContentView: View {
         }
     }
 
-    private func bindingOnDemandSubTab(appID: UUID) -> Binding<OnDemandSubTab> {
-        Binding(
-            get: { onDemandSelectedSubTab[appID] ?? .config },
-            set: { onDemandSelectedSubTab[appID] = $0 }
-        )
-    }
-
     private func bindingOnDemandShellCommand(appID: UUID) -> Binding<String> {
         Binding(
             get: { onDemandShellCommandByAppID[appID] ?? "" },
             set: { onDemandShellCommandByAppID[appID] = $0 }
         )
+    }
+
+    private func bindingForOnDemandApp(id: UUID) -> Binding<OnDemandAppDraft>? {
+        guard let index = viewModel.onDemandApps.firstIndex(where: { $0.id == id }) else { return nil }
+        return $viewModel.onDemandApps[index]
+    }
+
+    private func ensureValidOnDemandSelection() {
+        let ids = viewModel.onDemandApps.map(\.id)
+        if let selected = selectedOnDemandAppID, ids.contains(selected) {
+            return
+        }
+        selectedOnDemandAppID = ids.first
+    }
+
+    private func removeOnDemandAppAndUpdateSelection(id: UUID) {
+        let idsBefore = viewModel.onDemandApps.map(\.id)
+        let removedIndex = idsBefore.firstIndex(of: id)
+        viewModel.removeOnDemandApp(id: id)
+
+        guard selectedOnDemandAppID == id else { return }
+        let idsAfter = viewModel.onDemandApps.map(\.id)
+        guard !idsAfter.isEmpty else {
+            selectedOnDemandAppID = nil
+            return
+        }
+
+        if let removedIndex {
+            let nextIndex = min(removedIndex, idsAfter.count - 1)
+            selectedOnDemandAppID = idsAfter[nextIndex]
+        } else {
+            selectedOnDemandAppID = idsAfter.first
+        }
     }
 
     private var onDemandPresetPickerSheet: some View {
@@ -1314,7 +1380,8 @@ struct ContentView: View {
                             meta: "Podman/Docker • frei konfigurierbar"
                         ) {
                             viewModel.addOnDemandApp()
-                            editingOnDemandAppID = viewModel.onDemandApps.last?.id
+                            selectedOnDemandAppID = viewModel.onDemandApps.last?.id
+                            selectedOnDemandSubTab = .config
                             showOnDemandPresetPicker = false
                         }
 
@@ -1326,7 +1393,8 @@ struct ContentView: View {
                                 meta: "\(preset.app.runtime.label) • \(preset.app.host) • Port \(preset.app.targetPort)"
                             ) {
                                 viewModel.addOnDemandPreset(preset)
-                                editingOnDemandAppID = viewModel.onDemandApps.last?.id
+                                selectedOnDemandAppID = viewModel.onDemandApps.last?.id
+                                selectedOnDemandSubTab = .config
                                 showOnDemandPresetPicker = false
                             }
                         }
