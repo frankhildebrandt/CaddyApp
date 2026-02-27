@@ -1028,12 +1028,16 @@ struct ContentView: View {
 
                     HStack(spacing: 6) {
                         if isEnabled {
-                            Button(phase == .running ? "Stop" : "Start") {
+                            Button {
                                 viewModel.setOnDemandAppRunning(
                                     appID: appID,
                                     shouldRun: phase != .running
                                 )
+                            } label: {
+                                Image(systemName: phase == .running ? "stop.fill" : "play.fill")
+                                    .frame(width: 14, height: 14)
                             }
+                            .help(phase == .running ? "Stop" : "Start")
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .disabled(viewModel.isChangingOnDemandAppRuntime)
@@ -1045,11 +1049,6 @@ struct ContentView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
 
-                        Button("Logs") {
-                            openLogsForOnDemandApp(named: app.wrappedValue.name, unitName: app.wrappedValue.unitName)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
                 }
             }
@@ -1310,6 +1309,8 @@ struct ContentView: View {
             if onDemandShellCommandByAppID[app.id] == nil {
                 onDemandShellCommandByAppID[app.id] = "env | head -n 20"
             }
+            let result = viewModel.openInteractiveShellForOnDemandApp(app)
+            onDemandShellOutputByAppID[app.id] = result.message
         case .eventLog:
             onDemandEventLogByAppID[app.id] = viewModel.eventLogText(for: app)
         }
