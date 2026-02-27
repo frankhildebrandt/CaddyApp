@@ -9,7 +9,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Local Caddy install/version detection
 - Automatic Caddy bootstrap install attempt (Homebrew first, direct download fallback) when missing
 - Caddy release metadata lookup (GitHub API)
-- `*.localhost` reverse proxy Caddyfile preview with `tls internal`
+- Host-specific `*.localhost` reverse proxy Caddyfile preview with `tls internal` (no global wildcard site block)
 - `Validate` / `Reload` automatically persist the current preview before executing Caddy commands
 - `Reload Caddy` falls back to `caddy start` if no Caddy instance is currently running
 - `Reload Caddy` retries via the macOS administrator dialog when elevated rights are required (no hidden CLI password prompt)
@@ -20,7 +20,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Local Caddy CA root certificate path detection, auto-generation bootstrap, and trust guidance
 - Root certificate trust action uses the macOS administrator dialog (no terminal password prompt required)
 - Multipass / Podman discovery stubs (best effort)
-- Automatic Multipass routes: `{vm-name}.mp.localhost` and `*.{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
+- Automatic Multipass route: `{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
 - Feature progress documents in `docs/features/`
 
 ## Run

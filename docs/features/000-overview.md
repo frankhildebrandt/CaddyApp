@@ -5,7 +5,7 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 ## Current goals
 
 - Configure and manage Caddy on macOS.
-- Manage reverse proxies for `*.localhost`.
+- Manage reverse proxies for localhost subdomains.
 - Make `tls internal` (AutoTLS) usable with an easier root certificate trust flow.
 - Discover workloads from Multipass and Podman and propose proxy routes.
 - Define on-demand container apps (Podman/Docker) that auto-start on first URL access and auto-stop after inactivity.
@@ -17,7 +17,7 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 | ID | Feature | Status | Document |
 | --- | --- | --- | --- |
 | F-010 | Caddy Installation & Updates | Done | `docs/features/010-caddy-installation-updates.md` |
-| F-020 | Reverse Proxy for `*.localhost` | Done | `docs/features/020-reverse-proxy-localhost.md` |
+| F-020 | Reverse Proxy for localhost subdomains | Done | `docs/features/020-reverse-proxy-localhost.md` |
 | F-030 | AutoTLS & Root Certificate | Done | `docs/features/030-autotls-root-cert.md` |
 | F-040 | Multipass & Podman Runtime Discovery | Done | `docs/features/040-runtime-discovery-multipass-podman.md` |
 | F-050 | Caddy Release Monitoring | Done | `docs/features/050-release-monitoring.md` |

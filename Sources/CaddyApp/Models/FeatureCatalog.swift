@@ -11,7 +11,7 @@ enum FeatureCatalog {
         ),
         FeatureItem(
             id: "F-020",
-            title: "Reverse Proxy for *.localhost",
+            title: "Reverse Proxy for localhost Subdomains",
             status: .done,
             summary: "Manage reverse proxy routes and generate Caddyfile snippets for localhost domains.",
             documentPath: "docs/features/020-reverse-proxy-localhost.md"

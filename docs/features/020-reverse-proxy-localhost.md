@@ -1,20 +1,20 @@
-# F-020 Reverse Proxy for *.localhost
+# F-020 Reverse Proxy for localhost Subdomains
 
 ## Status
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-02-26
+- Last Updated: 2026-02-27
 
 ## Goal
 
-Manage reverse proxy routes for local services using `*.localhost` and generate a valid Caddyfile preview.
+Manage reverse proxy routes for local services using localhost subdomains and generate a valid Caddyfile preview.
 
 ## Scope
 
 - In scope: Route model (`host`, `upstream`, `source`, `enabled`).
 - In scope: Caddyfile generation preview with `tls internal` and `reverse_proxy`.
-- In scope: Wildcard `*.localhost` placeholder site block.
+- In scope: Host-specific site blocks with `tls internal` per configured route.
 - Out of scope: Persisting route changes to disk in this bootstrap.
 
 ## Acceptance Criteria
@@ -31,7 +31,7 @@ Manage reverse proxy routes for local services using `*.localhost` and generate 
 ## Implementation Notes
 
 - Current preview uses a fixed path target in `~/Library/Application Support/CaddyApp/Caddyfile`.
-- The wildcard block is included as a convenience/diagnostic placeholder.
+- Caddyfile generation creates explicit host site blocks only, so certificate issuance is host-specific per subdomain.
 - Next step is a config writer plus `caddy validate` and `caddy reload` integration.
 - `Validate` and `Reload` now write the current preview to disk first to avoid missing-file errors on first use.
 - `Reload` falls back to `caddy start` when no running Caddy instance is listening on the admin endpoint.
@@ -46,3 +46,4 @@ Manage reverse proxy routes for local services using `*.localhost` and generate 
 - 2026-02-26: Added automatic Multipass apex + wildcard routes under `{vm-name}.mp.localhost` and `*.{vm-name}.mp.localhost`.
 - 2026-02-26: Added automatic Caddy startup on app launch and auto-reload on valid generated config changes.
 - 2026-02-26: Added manual reload confirmation and rollback-safe config apply flow (backup, validate, restore on failure).
+- 2026-02-27: Removed global `*.localhost` placeholder block so each configured subdomain receives its own TLS certificate (`tls internal`).

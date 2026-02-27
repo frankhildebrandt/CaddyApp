@@ -28,11 +28,6 @@ struct CaddyConfigService {
         lines.append("    admin localhost:2019")
         lines.append("}")
         lines.append("")
-        lines.append("*.localhost {")
-        lines.append("    tls internal")
-        lines.append("    respond \"Caddy wildcard localhost is configured.\" 200")
-        lines.append("}")
-        lines.append("")
 
         for route in routes {
             lines.append("\(route.host) {")
@@ -62,12 +57,6 @@ struct CaddyConfigService {
                 return [
                     ProxyRoute(
                         host: "\(vmLabel).mp.localhost",
-                        upstream: target.address,
-                        source: .multipass,
-                        enabled: enabled
-                    ),
-                    ProxyRoute(
-                        host: "*.\(vmLabel).mp.localhost",
                         upstream: target.address,
                         source: .multipass,
                         enabled: enabled

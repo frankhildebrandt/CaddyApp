@@ -712,8 +712,8 @@ struct ContentView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                if target.source == .multipass, let hosts = multipassAutoHosts(for: target.name) {
-                                    Text("Auto routes: \(hosts.apex), \(hosts.wildcard)")
+                                if target.source == .multipass, let host = multipassAutoHost(for: target.name) {
+                                    Text("Auto route: \(host)")
                                         .font(.caption.monospaced())
                                         .foregroundStyle(.secondary)
                                 }
@@ -1607,7 +1607,7 @@ struct ContentView: View {
             && snapshot.tlsStatus.systemKeychainTrustStatus == .trusted
     }
 
-    private func multipassAutoHosts(for name: String) -> (apex: String, wildcard: String)? {
+    private func multipassAutoHost(for name: String) -> String? {
         let lowered = name.lowercased()
         let mapped = lowered.map { character -> Character in
             if character.isLetter || character.isNumber || character == "-" {
@@ -1620,14 +1620,14 @@ struct ContentView: View {
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         guard !label.isEmpty else { return nil }
         let truncated = String(label.prefix(63))
-        return ("\(truncated).mp.localhost", "*.\(truncated).mp.localhost")
+        return "\(truncated).mp.localhost"
     }
 
     private func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {
         switch target.source {
         case .multipass:
-            guard let hosts = multipassAutoHosts(for: target.name) else { return nil }
-            return URL(string: "https://\(hosts.apex)")
+            guard let host = multipassAutoHost(for: target.name) else { return nil }
+            return URL(string: "https://\(host)")
         case .podman:
             if target.address.hasPrefix("http://") || target.address.hasPrefix("https://") {
                 return URL(string: target.address)

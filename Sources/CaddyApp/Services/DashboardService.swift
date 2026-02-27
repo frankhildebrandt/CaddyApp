@@ -116,7 +116,7 @@ actor DashboardService {
             warnings.append("Caddy is not installed. The app can still prepare configuration, but cannot apply it yet.")
         }
         if !tlsStatus.rootCertificatePresent {
-            warnings.append("Caddy local CA root certificate not found yet. AutoTLS for *.localhost will need a trust step.")
+            warnings.append("Caddy local CA root certificate not found yet. AutoTLS for localhost subdomains will need a trust step.")
         } else if tlsStatus.systemKeychainTrustStatus == .notTrusted {
             warnings.append("Caddy local CA root certificate exists, but is not trusted in the macOS System Keychain yet.")
         }
