@@ -62,6 +62,7 @@ struct ContentView: View {
     }
 
     @ObservedObject var viewModel: DashboardViewModel
+    @StateObject private var onDemandShellSession = OnDemandEmbeddedShellSession()
     @AppStorage(AppWindowController.hideOnClosePreferenceKey) private var hideWindowToMenuBarOnClose = false
     @State private var showCaddyUpdateConfirmation = false
     @State private var showReloadConfigConfirmation = false
@@ -69,11 +70,10 @@ struct ContentView: View {
     @State private var selectedOnDemandAppID: UUID?
     @State private var selectedOnDemandSubTab: OnDemandSubTab = .config
     @State private var showOnDemandPresetPicker = false
+    @State private var onDemandShellInput = ""
     @State private var onDemandHostLogByAppID: [UUID: String] = [:]
     @State private var onDemandContainerLogByAppID: [UUID: String] = [:]
     @State private var onDemandEventLogByAppID: [UUID: String] = [:]
-    @State private var onDemandShellCommandByAppID: [UUID: String] = [:]
-    @State private var onDemandShellOutputByAppID: [UUID: String] = [:]
     @State private var onDemandLoadingByAppID: [UUID: Bool] = [:]
 
     var body: some View {
@@ -92,6 +92,8 @@ struct ContentView: View {
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .onDemandApps {
                 selectedOnDemandAppID = nil
+            } else {
+                onDemandShellSession.stop()
             }
         }
         .background(MainWindowDelegateInstaller())
@@ -870,6 +872,7 @@ struct ContentView: View {
                         Spacer()
                         if selectedOnDemandAppID != nil {
                             Button {
+                                onDemandShellSession.stop()
                                 selectedOnDemandAppID = nil
                             } label: {
                                 Label("Zurück zur Liste", systemImage: "chevron.left")
@@ -1059,7 +1062,10 @@ struct ContentView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: selectedOnDemandSubTab) { _, newTab in
+            .onChange(of: selectedOnDemandSubTab) { oldTab, newTab in
+                if oldTab == .shell, newTab != .shell {
+                    onDemandShellSession.stop()
+                }
                 loadOnDemandSubTab(tab: newTab, app: app.wrappedValue)
             }
 
@@ -1224,46 +1230,43 @@ struct ContentView: View {
     private func onDemandShellView(app: OnDemandAppDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Button("Interaktive Shell öffnen") {
-                    let result = viewModel.openInteractiveShellForOnDemandApp(app)
-                    onDemandShellOutputByAppID[app.id] = result.message
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-
+                Text(onDemandShellSession.statusMessage.isEmpty ? "Shell in der App" : onDemandShellSession.statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(onDemandShellSession.isRunning ? .green : .secondary)
                 Spacer()
-            }
-
-            Text("Einzeilige Befehle direkt im Container/Pod ausführen")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            let commandBinding = bindingOnDemandShellCommand(appID: app.id)
-            HStack(spacing: 8) {
-                TextField("z. B. env | head -n 20", text: commandBinding)
-                    .textFieldStyle(.roundedBorder)
-                Button("Ausführen") {
-                    runOnDemandShellCommand(app: app, command: commandBinding.wrappedValue)
+                Button("Neu verbinden") {
+                    onDemandShellSession.restart(for: app)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(onDemandLoadingByAppID[app.id] == true)
             }
 
-            if onDemandLoadingByAppID[app.id] == true {
-                ProgressView()
-                    .controlSize(.small)
+            Text("Interaktive Shell direkt im Tab (kein externes Terminal).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                TextField("Befehl eingeben", text: $onDemandShellInput)
+                    .textFieldStyle(.roundedBorder)
+                Button("Senden") {
+                    let command = onDemandShellInput
+                    onDemandShellInput = ""
+                    onDemandShellSession.send(command)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!onDemandShellSession.isRunning)
             }
 
-            let output = onDemandShellOutputByAppID[app.id] ?? ""
+            let output = onDemandShellSession.output
             if output.isEmpty {
-                Text("Noch keine Shell-Ausgabe vorhanden.")
+                Text("Shell wird initialisiert...")
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
             } else {
                 TextEditor(text: .constant(output))
                     .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 180)
+                    .frame(minHeight: 260)
             }
         }
     }
@@ -1306,11 +1309,8 @@ struct ContentView: View {
                 refreshOnDemandContainerLog(app: app)
             }
         case .shell:
-            if onDemandShellCommandByAppID[app.id] == nil {
-                onDemandShellCommandByAppID[app.id] = "env | head -n 20"
-            }
-            let result = viewModel.openInteractiveShellForOnDemandApp(app)
-            onDemandShellOutputByAppID[app.id] = result.message
+            onDemandShellInput = ""
+            onDemandShellSession.restart(for: app)
         case .eventLog:
             onDemandEventLogByAppID[app.id] = viewModel.eventLogText(for: app)
         }
@@ -1323,22 +1323,6 @@ struct ContentView: View {
             onDemandContainerLogByAppID[app.id] = text
             onDemandLoadingByAppID[app.id] = false
         }
-    }
-
-    private func runOnDemandShellCommand(app: OnDemandAppDraft, command: String) {
-        onDemandLoadingByAppID[app.id] = true
-        Task {
-            let output = await viewModel.runShellCommandInApp(command, app: app)
-            onDemandShellOutputByAppID[app.id] = output
-            onDemandLoadingByAppID[app.id] = false
-        }
-    }
-
-    private func bindingOnDemandShellCommand(appID: UUID) -> Binding<String> {
-        Binding(
-            get: { onDemandShellCommandByAppID[appID] ?? "" },
-            set: { onDemandShellCommandByAppID[appID] = $0 }
-        )
     }
 
     private func bindingForOnDemandApp(id: UUID) -> Binding<OnDemandAppDraft>? {
@@ -1583,16 +1567,6 @@ struct ContentView: View {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { $0.lowercased().contains(needle) }
             .joined(separator: "\n")
-    }
-
-    private func openLogsForOnDemandApp(named name: String, unitName: String) {
-        if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            viewModel.logFilterQuery = "app=\(name)"
-        } else if !unitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            viewModel.logFilterQuery = unitName
-        }
-        selectedTab = .logs
-        viewModel.refreshLogs()
     }
 
     private func statusColor(_ status: FeatureStatus) -> Color {

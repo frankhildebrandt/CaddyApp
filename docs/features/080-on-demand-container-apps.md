@@ -57,4 +57,5 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Refined On-Demand UI to an overview layout (app list + single tabbed detail view) instead of per-card tabs.
 - 2026-02-27: Refined further to full-view switching: app overview list as default, then full detail/tab view with explicit back-to-list action.
 - 2026-02-27: Updated detail action bar to icon-based start/stop controls and removed direct logs action; shell tab now opens an interactive container shell automatically on tab entry.
+- 2026-02-27: Replaced external Terminal launch with an embedded in-app shell session inside the Shell tab (live stdin/stdout in the app UI).
 - 2026-02-27: Gateway adjusted to keep returning the on-demand status/waiting page while an app is still not reachable during warm-up instead of returning a hard 502 text error.
