@@ -24,6 +24,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Multipass / Podman discovery stubs (best effort)
 - Automatic Multipass route: `{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
 - YAML-based app repository feed under `docs/repository/` (GitHub Pages ready)
+- On-Demand preset picker supports web repository sources (`repositories.yaml` / `apps/index.yaml`) with update + import flow
 - Feature progress documents in `docs/features/`
 
 ## Run

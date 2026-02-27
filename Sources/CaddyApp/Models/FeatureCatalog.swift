@@ -61,7 +61,7 @@ enum FeatureCatalog {
         FeatureItem(
             id: "F-090",
             title: "YAML App Repositories",
-            status: .inProgress,
+            status: .done,
             summary: "Define and distribute custom app presets via web-updatable YAML repositories.",
             documentPath: "docs/features/090-yaml-app-repositories.md"
         )

@@ -58,6 +58,7 @@ struct CustomRouteDraft: Identifiable, Hashable, Codable {
 struct CustomConfigSettings: Codable {
     var customRoutes: [CustomRouteDraft]
     var onDemandApps: [OnDemandAppDraft]
+    var appRepositories: [AppRepositoryDraft]
     var additionalCaddyfileConfig: String
 
     static let `default` = CustomConfigSettings(
@@ -66,8 +67,62 @@ struct CustomConfigSettings: Codable {
             CustomRouteDraft(host: "api.localhost", upstream: "127.0.0.1:8080", enabled: true)
         ],
         onDemandApps: [],
+        appRepositories: AppRepositoryDraft.defaultList,
         additionalCaddyfileConfig: ""
     )
+
+    enum CodingKeys: String, CodingKey {
+        case customRoutes
+        case onDemandApps
+        case appRepositories
+        case additionalCaddyfileConfig
+    }
+
+    init(
+        customRoutes: [CustomRouteDraft],
+        onDemandApps: [OnDemandAppDraft],
+        appRepositories: [AppRepositoryDraft],
+        additionalCaddyfileConfig: String
+    ) {
+        self.customRoutes = customRoutes
+        self.onDemandApps = onDemandApps
+        self.appRepositories = appRepositories
+        self.additionalCaddyfileConfig = additionalCaddyfileConfig
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        customRoutes = try container.decodeIfPresent([CustomRouteDraft].self, forKey: .customRoutes)
+            ?? Self.default.customRoutes
+        onDemandApps = try container.decodeIfPresent([OnDemandAppDraft].self, forKey: .onDemandApps)
+            ?? Self.default.onDemandApps
+        appRepositories = try container.decodeIfPresent([AppRepositoryDraft].self, forKey: .appRepositories)
+            ?? AppRepositoryDraft.defaultList
+        additionalCaddyfileConfig = try container.decodeIfPresent(String.self, forKey: .additionalCaddyfileConfig)
+            ?? Self.default.additionalCaddyfileConfig
+    }
+}
+
+struct AppRepositoryDraft: Identifiable, Hashable, Codable {
+    var id: UUID
+    var name: String
+    var entryURL: String
+    var enabled: Bool
+
+    init(id: UUID = UUID(), name: String, entryURL: String, enabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.entryURL = entryURL
+        self.enabled = enabled
+    }
+
+    static let defaultList: [AppRepositoryDraft] = [
+        AppRepositoryDraft(
+            name: "CaddyApp GitHub Pages",
+            entryURL: "https://frankhildebrandt.github.io/CaddyApp/repository/repositories.yaml",
+            enabled: true
+        )
+    ]
 }
 
 enum RuntimeSource: String, CaseIterable {
@@ -206,6 +261,15 @@ struct OnDemandAppPreset: Identifiable, Hashable {
     var summary: String
     var app: OnDemandAppDraft
     var notes: String
+}
+
+struct AppRepositorySyncResult {
+    var succeeded: Bool
+    var message: String
+    var warnings: [String]
+    var loadedPresetCount: Int
+    var loadedRepositoryCount: Int
+    var performedAt: Date
 }
 
 enum OnDemandAppPresetCatalog {

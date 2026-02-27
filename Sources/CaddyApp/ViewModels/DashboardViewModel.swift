@@ -18,6 +18,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var lastCaddyUpdateOperation: CaddyUpdateOperationResult?
     @Published var customRoutes: [CustomRouteDraft]
     @Published var onDemandApps: [OnDemandAppDraft]
+    @Published var appRepositories: [AppRepositoryDraft]
     @Published var customAdditionalCaddyfileConfig: String
     @Published private(set) var isSavingCustomConfig = false
     @Published private(set) var lastCustomConfigSaveResult: CustomConfigSaveResult?
@@ -27,6 +28,9 @@ final class DashboardViewModel: ObservableObject {
     @Published var logFilterQuery: String = ""
     @Published private(set) var isChangingOnDemandAppRuntime = false
     @Published private(set) var lastOnDemandAppControlResult: OnDemandAppControlResult?
+    @Published private(set) var remoteOnDemandPresets: [OnDemandAppPreset] = []
+    @Published private(set) var isRefreshingAppRepositories = false
+    @Published private(set) var lastRepositorySyncResult: AppRepositorySyncResult?
 
     private let dashboardService: DashboardService
     private let configLifecycleService: CaddyConfigLifecycleService
@@ -34,12 +38,14 @@ final class DashboardViewModel: ObservableObject {
     private let caddyInstallationService: CaddyInstallationService
     private let customConfigStore: CustomConfigStore
     private let onDemandAppsService: OnDemandAppsService
+    private let appRepositoryService: AppRepositoryService
     private let shellRunner = ShellCommandRunner()
     private var hasLoaded = false
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
     private var runtimePollingTask: Task<Void, Never>?
     private var draftAutoSaveTask: Task<Void, Never>?
+    private var hasLoadedRepositoryPresets = false
 
     init(
         dashboardService: DashboardService,
@@ -47,7 +53,8 @@ final class DashboardViewModel: ObservableObject {
         tlsService: LocalhostTLSService = LocalhostTLSService(),
         caddyInstallationService: CaddyInstallationService = CaddyInstallationService(),
         customConfigStore: CustomConfigStore = CustomConfigStore(),
-        onDemandAppsService: OnDemandAppsService = .shared
+        onDemandAppsService: OnDemandAppsService = .shared,
+        appRepositoryService: AppRepositoryService = AppRepositoryService()
     ) {
         let initialCustomConfig = customConfigStore.load()
         self.dashboardService = dashboardService
@@ -56,8 +63,10 @@ final class DashboardViewModel: ObservableObject {
         self.caddyInstallationService = caddyInstallationService
         self.customConfigStore = customConfigStore
         self.onDemandAppsService = onDemandAppsService
+        self.appRepositoryService = appRepositoryService
         self.customRoutes = initialCustomConfig.customRoutes
         self.onDemandApps = initialCustomConfig.onDemandApps
+        self.appRepositories = initialCustomConfig.appRepositories
         self.customAdditionalCaddyfileConfig = initialCustomConfig.additionalCaddyfileConfig
     }
 
@@ -94,6 +103,9 @@ final class DashboardViewModel: ObservableObject {
             self.isLoading = false
             self.hasLoaded = true
             self.startRuntimePollingIfNeeded()
+            if !self.hasLoadedRepositoryPresets {
+                self.refreshAppRepositoryPresets()
+            }
             await self.runAutomaticCaddyActionsIfNeeded(
                 previousSnapshot: previousSnapshot,
                 currentSnapshot: snapshot,
@@ -210,6 +222,43 @@ final class DashboardViewModel: ObservableObject {
         onDemandApps.removeAll { $0.id == id }
     }
 
+    func addAppRepository() {
+        appRepositories.append(
+            AppRepositoryDraft(
+                name: "Neues Repository",
+                entryURL: "",
+                enabled: true
+            )
+        )
+    }
+
+    func removeAppRepository(id: AppRepositoryDraft.ID) {
+        appRepositories.removeAll { $0.id == id }
+    }
+
+    func moveAppRepositoryUp(id: AppRepositoryDraft.ID) {
+        guard let index = appRepositories.firstIndex(where: { $0.id == id }), index > 0 else { return }
+        appRepositories.swapAt(index, index - 1)
+    }
+
+    func moveAppRepositoryDown(id: AppRepositoryDraft.ID) {
+        guard let index = appRepositories.firstIndex(where: { $0.id == id }), index < appRepositories.count - 1 else { return }
+        appRepositories.swapAt(index, index + 1)
+    }
+
+    func refreshAppRepositoryPresets() {
+        guard !isRefreshingAppRepositories else { return }
+        isRefreshingAppRepositories = true
+        Task { [weak self] in
+            guard let self else { return }
+            let sync = await self.appRepositoryService.syncPresets(from: self.appRepositories)
+            self.remoteOnDemandPresets = sync.presets
+            self.lastRepositorySyncResult = sync.result
+            self.isRefreshingAppRepositories = false
+            self.hasLoadedRepositoryPresets = true
+        }
+    }
+
     func scheduleDraftAutoSave() {
         guard hasLoaded else { return }
         draftAutoSaveTask?.cancel()
@@ -233,6 +282,7 @@ final class DashboardViewModel: ObservableObject {
                 let settings = CustomConfigSettings(
                     customRoutes: existingSettings.customRoutes,
                     onDemandApps: existingSettings.onDemandApps,
+                    appRepositories: appRepositories,
                     additionalCaddyfileConfig: additionalConfig
                 )
                 try self.customConfigStore.save(settings)
@@ -277,6 +327,12 @@ final class DashboardViewModel: ObservableObject {
             normalized.healthPath = app.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
             return normalized
         }
+        let normalizedRepositories = appRepositories.map { repository in
+            var normalized = repository
+            normalized.name = repository.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.entryURL = repository.entryURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized
+        }
 
         if let validationError = validateCustomConfig(routes: normalizedRoutes) {
             customConfigValidationError = validationError
@@ -296,13 +352,26 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
+        if let validationError = validateAppRepositories(normalizedRepositories) {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: "Auto-Save pausiert: \(validationError)",
+                performedAt: Date()
+            )
+            return
+        }
 
-        if normalizedRoutes == existingSettings.customRoutes, normalizedOnDemandApps == existingSettings.onDemandApps {
+        if normalizedRoutes == existingSettings.customRoutes,
+           normalizedOnDemandApps == existingSettings.onDemandApps,
+           normalizedRepositories == existingSettings.appRepositories
+        {
             return
         }
 
         customRoutes = normalizedRoutes
         onDemandApps = normalizedOnDemandApps
+        appRepositories = normalizedRepositories
         customConfigValidationError = nil
         isSavingCustomConfig = true
         let removedOnDemandApps = existingSettings.onDemandApps.filter { previous in
@@ -311,6 +380,7 @@ final class DashboardViewModel: ObservableObject {
         let settings = CustomConfigSettings(
             customRoutes: normalizedRoutes,
             onDemandApps: normalizedOnDemandApps,
+            appRepositories: normalizedRepositories,
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
 
@@ -742,6 +812,34 @@ final class DashboardViewModel: ObservableObject {
             .sorted()
         if let duplicateUnit = duplicateUnits.first {
             return "Doppelter Runtime/Unit-Name in On-Demand Apps: \(duplicateUnit)"
+        }
+
+        return nil
+    }
+
+    private func validateAppRepositories(_ repositories: [AppRepositoryDraft]) -> String? {
+        for (index, repository) in repositories.enumerated() {
+            let row = index + 1
+            if repository.name.isEmpty {
+                return "Repository \(row): Name darf nicht leer sein."
+            }
+            if repository.enabled && repository.entryURL.isEmpty {
+                return "Repository \(row): URL darf bei aktivem Repository nicht leer sein."
+            }
+            if repository.entryURL.contains(where: \.isWhitespace) {
+                return "Repository \(row): URL darf keine Leerzeichen enthalten."
+            }
+            if !repository.entryURL.isEmpty, URL(string: repository.entryURL) == nil {
+                return "Repository \(row): Ungültige URL."
+            }
+        }
+
+        let duplicateURLs = Dictionary(grouping: repositories.map { $0.entryURL.lowercased() }) { $0 }
+            .filter { !$0.key.isEmpty && $0.value.count > 1 }
+            .map(\.key)
+            .sorted()
+        if let duplicateURL = duplicateURLs.first {
+            return "Doppelte Repository-URL: \(duplicateURL)"
         }
 
         return nil

@@ -25,7 +25,7 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 | F-060 | Feature Progress Tracking | Done | `docs/features/060-observability-progress.md` |
 | F-070 | Menu Bar / Systray Integration | Done | `docs/features/070-menubar-systray.md` |
 | F-080 | On-Demand Container Apps (Auto Start/Stop by URL Access) | Done | `docs/features/080-on-demand-container-apps.md` |
-| F-090 | YAML App Repositories (Web-Updatable) | In Progress | `docs/features/090-yaml-app-repositories.md` |
+| F-090 | YAML App Repositories (Web-Updatable) | Done | `docs/features/090-yaml-app-repositories.md` |
 
 ## Workflow
 

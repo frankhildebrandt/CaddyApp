@@ -95,6 +95,9 @@ struct ContentView: View {
         .onChange(of: viewModel.onDemandApps) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
+        .onChange(of: viewModel.appRepositories) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .onDemandApps {
                 selectedOnDemandAppID = nil
@@ -105,6 +108,11 @@ struct ContentView: View {
         .background(MainWindowDelegateInstaller())
         .sheet(isPresented: $showOnDemandPresetPicker) {
             onDemandPresetPickerSheet
+                .onAppear {
+                    if !viewModel.isRefreshingAppRepositories, viewModel.remoteOnDemandPresets.isEmpty {
+                        viewModel.refreshAppRepositoryPresets()
+                    }
+                }
         }
         .confirmationDialog(
             "Caddy aktualisieren?",
@@ -886,6 +894,13 @@ struct ContentView: View {
                             .buttonStyle(.bordered)
                         }
                         Button {
+                            viewModel.refreshAppRepositoryPresets()
+                        } label: {
+                            Label("Web-Update", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(viewModel.isRefreshingAppRepositories)
+                        Button {
                             showOnDemandPresetPicker = true
                         } label: {
                             Label("Hinzufügen", systemImage: "plus")
@@ -973,6 +988,11 @@ struct ContentView: View {
                     if let controlResult = viewModel.lastOnDemandAppControlResult {
                         Text(controlResult.message)
                             .foregroundStyle(controlResult.succeeded ? .green : .red)
+                            .font(.caption)
+                    }
+                    if let repositoryResult = viewModel.lastRepositorySyncResult {
+                        Text(repositoryResult.message)
+                            .foregroundStyle(repositoryResult.succeeded ? .green : .red)
                             .font(.caption)
                     }
                 }
@@ -1344,9 +1364,93 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    GroupBox("Repository-Quellen (YAML, Web)") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Trage hier Web-Repositories ein (`repositories.yaml` oder `apps/index.yaml`) und lade Presets per Web-Update.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ForEach($viewModel.appRepositories) { $repository in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 8) {
+                                        Toggle("", isOn: $repository.enabled)
+                                            .labelsHidden()
+                                            .toggleStyle(.checkbox)
+                                        TextField("Repository-Name", text: $repository.name)
+                                            .textFieldStyle(.roundedBorder)
+                                            .frame(maxWidth: 220)
+                                        TextField("Repository-URL", text: $repository.entryURL)
+                                            .textFieldStyle(.roundedBorder)
+                                        Button {
+                                            viewModel.moveAppRepositoryUp(id: repository.id)
+                                        } label: {
+                                            Image(systemName: "arrow.up")
+                                        }
+                                        .buttonStyle(.borderless)
+                                        Button {
+                                            viewModel.moveAppRepositoryDown(id: repository.id)
+                                        } label: {
+                                            Image(systemName: "arrow.down")
+                                        }
+                                        .buttonStyle(.borderless)
+                                        Button(role: .destructive) {
+                                            viewModel.removeAppRepository(id: repository.id)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                        }
+                                        .buttonStyle(.borderless)
+                                    }
+                                }
+                            }
+
+                            HStack(spacing: 8) {
+                                Button {
+                                    viewModel.addAppRepository()
+                                } label: {
+                                    Label("Repository hinzufügen", systemImage: "plus")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button {
+                                    viewModel.refreshAppRepositoryPresets()
+                                } label: {
+                                    Label("Web-Repositories aktualisieren", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(viewModel.isRefreshingAppRepositories)
+
+                                if viewModel.isRefreshingAppRepositories {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                            }
+
+                            if let result = viewModel.lastRepositorySyncResult {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(result.message)
+                                        .foregroundStyle(result.succeeded ? .green : .red)
+                                        .font(.caption)
+                                    Text("Presets: \(result.loadedPresetCount) • Quellen: \(result.loadedRepositoryCount) • \(result.performedAt.formatted(date: .abbreviated, time: .standard))")
+                                        .foregroundStyle(.secondary)
+                                        .font(.caption2)
+                                    if !result.warnings.isEmpty {
+                                        ForEach(Array(result.warnings.prefix(3).enumerated()), id: \.offset) { _, warning in
+                                            Text("• \(warning)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     let columns = [
                         GridItem(.adaptive(minimum: 220), spacing: 12)
                     ]
+
+                    Text("Lokale Presets")
+                        .font(.subheadline.weight(.semibold))
                     LazyVGrid(columns: columns, spacing: 12) {
                         onDemandAddOptionTile(
                             title: "Custom App",
@@ -1371,6 +1475,29 @@ struct ContentView: View {
                                 showOnDemandPresetPicker = false
                             }
                         }
+                    }
+
+                    if !viewModel.remoteOnDemandPresets.isEmpty {
+                        Text("Repository Presets")
+                            .font(.subheadline.weight(.semibold))
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(viewModel.remoteOnDemandPresets) { preset in
+                                onDemandAddOptionTile(
+                                    title: preset.title,
+                                    iconSystemName: preset.iconSystemName,
+                                    summary: preset.summary,
+                                    meta: "\(preset.app.runtime.label) • \(preset.app.host) • Port \(preset.app.targetPort)"
+                                ) {
+                                    viewModel.addOnDemandPreset(preset)
+                                    selectedOnDemandAppID = nil
+                                    showOnDemandPresetPicker = false
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Noch keine Repository-Presets geladen. Nutze 'Web-Repositories aktualisieren'.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
                     Text("Hinweis: Kimai und Ephe benötigen meist einen längeren ersten Start. Ephe wird aus dem Git-Repository im Container gebaut.")

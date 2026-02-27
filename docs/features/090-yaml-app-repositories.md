@@ -2,7 +2,7 @@
 
 ## Status
 
-- State: In Progress
+- State: Done
 - Owner: TBD
 - Last Updated: 2026-02-27
 
@@ -26,9 +26,9 @@ Custom-Apps sollen als YAML-Dateien definiert, ueber Web-Repositories verteilt u
 - [x] Es existiert ein Repository-Index (`repositories.yaml`) mit der GitHub-Pages-URL als erste Repo-URL.
 - [x] Die bisherigen Preset-Apps liegen als einzelne YAML-Dateien vor.
 - [x] GitHub Pages Deployment fuer den Feed ist im Repo konfiguriert.
-- [ ] Die App kann Repository-Quellen in der UI verwalten (hinzufuegen/entfernen/priorisieren).
-- [ ] Die App kann YAML-Dateien aus Repositories laden, validieren und in den lokalen Katalog uebernehmen.
-- [ ] Die App bietet einen Web-Update-Flow fuer YAML-Inhalte inkl. Fehlerfeedback.
+- [x] Die App kann Repository-Quellen in der UI verwalten (hinzufuegen/entfernen/priorisieren).
+- [x] Die App kann YAML-Dateien aus Repositories laden, validieren und in den lokalen Katalog uebernehmen.
+- [x] Die App bietet einen Web-Update-Flow fuer YAML-Inhalte inkl. Fehlerfeedback.
 
 ## Implementation Notes
 
@@ -43,3 +43,6 @@ Custom-Apps sollen als YAML-Dateien definiert, ueber Web-Repositories verteilt u
 - 2026-02-27: YAML-Dateien fuer Loki, Grafana, Kimai und Ephe angelegt.
 - 2026-02-27: Repository-Index mit GitHub-Pages-URL als erster Quelle erstellt.
 - 2026-02-27: GitHub-Pages-Workflow fuer `docs/` Deployment hinzugefuegt.
+- 2026-02-27: App-UI um Repository-Verwaltung (eintragen, aktivieren, priorisieren, entfernen) erweitert.
+- 2026-02-27: YAML-Loader mit Validierung fuer `RepositoryIndex`, `AppIndex` und `OnDemandApp` implementiert.
+- 2026-02-27: Web-Update-Flow mit Status-/Warnungsanzeige und Import in den Preset-Picker integriert.

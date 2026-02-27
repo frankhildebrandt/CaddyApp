@@ -81,6 +81,7 @@ GitHub Actions workflow:
 Behavior:
 - deploys `docs/` to GitHub Pages on push to `main` when repository feed files change
 - allows manual deployment via `workflow_dispatch`
+- app-side repository URLs can be managed in the On-Demand preset picker and refreshed from web
 
 ## Recommended Branch Naming
 
