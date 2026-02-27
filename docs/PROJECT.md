@@ -26,33 +26,26 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 
 ## Build and Run
 
-- `make build`: debug build + app bundle generation + auto-commit (if changes exist)
-- `make release`: release build + app bundle generation + auto-commit (if changes exist)
+- `make build`: debug build + app bundle generation
+- `make release`: release build + app bundle generation
 - `make run`: run app from SwiftPM
 - `make check`: build + tests
 
 ## Automation Rules (Implemented)
 
-### 1) Auto-commit after successful build
+### 1) Agent-commit after successful build
 
-`make build` and `make release` call:
-- `scripts/auto_commit_after_build.sh`
+`make build` and `make release` do not create commits automatically.
+After a successful build, the coding agent creates the commit.
 
 Behavior:
-- runs only inside a git branch
-- skips when working tree is already clean
-- stages all current changes (`git add -A`)
-- creates one short commit message derived from changed file names
-
-Opt-out (for temporary WIP):
-
-```bash
-CADDYAPP_SKIP_AUTOCOMMIT=1 make build
-```
+- only commit when working tree is not clean
+- stage all current changes (`git add -A`)
+- use one short and precise commit message
 
 ### 2) Automatic feature documentation
 
-Before the auto-commit runs, this script is called:
+Before the agent commit, this script can be called:
 - `scripts/ensure_feature_doc.sh`
 
 Behavior:

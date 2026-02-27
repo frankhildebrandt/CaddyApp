@@ -63,12 +63,10 @@ Die App-Version im `Info.plist` wird direkt aus dem Release-Tag uebernommen.
 
 ## Automatisierung
 
-`make build` und `make release` fuehren nach erfolgreichem Build automatisch einen kurzen Git-Commit aus, wenn Aenderungen vorhanden sind.
+`make build` und `make release` erstellen keinen automatischen Git-Commit.
+Der Commit wird nach erfolgreichem Build durch den Coding Agent mit kurzer, praegnanter Message ausgefuehrt.
 
-- Standard: Auto-Commit aktiv
-- Opt-out: `CADDYAPP_SKIP_AUTOCOMMIT=1 make build`
-
-Bei Feature-Branches (`feat/...`, `feature/...`) wird vor dem Auto-Commit automatisch ein Feature-Dokument unter `docs/features/` angelegt, falls noch keines geaendert wurde.
+Bei Feature-Branches (`feat/...`, `feature/...`) kann vor dem Agent-Commit automatisch ein Feature-Dokument unter `docs/features/` angelegt werden, falls noch keines geaendert wurde.
 
 - Force-Flag: `CADDYAPP_FEATURE=1 make build`
 

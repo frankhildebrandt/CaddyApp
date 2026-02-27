@@ -33,7 +33,7 @@ Automatically build the macOS app bundle and attach it as a downloadable asset w
 
 - The workflow uses `macos-latest` so that all required Apple tooling (`swift`, `sips`, `iconutil`) is available.
 - Icon generation (`generate_app_icon.sh`) uses `qlmanage` which may not render SVGs in a headless environment; the step is allowed to fail gracefully (`|| echo "Icon generation skipped"`).
-- Auto-commit script is not invoked in CI (no git identity configured in the runner).
+- Repository commits are handled by the coding agent after successful local builds; CI build flow stays commit-free.
 - The `GITHUB_TOKEN` permission `contents: write` is required to upload release assets.
 
 ## Progress Log

@@ -15,24 +15,13 @@ Dieses Dokument definiert verbindliche Regeln fuer Agenten/Automatisierung im Pr
 
 ## Verbindliche Commit-Regel
 
-Nach jedem erfolgreichen Build, wenn Aenderungen vorhanden sind, muss automatisch ein Git-Commit erstellt werden.
-
-Technische Umsetzung im Repo:
-
-- `scripts/auto_commit_after_build.sh`
-- aufgerufen von `make build` und `make release`
+Nach jedem erfolgreichen Build, wenn Aenderungen vorhanden sind, muss der Coding Agent einen Git-Commit erstellen.
 
 Der Commit soll:
 
-- kurz beschrieben sein
+- kurz und praegnant beschrieben sein
 - alle aktuellen Aenderungen enthalten (`git add -A`)
 - nur dann entstehen, wenn die Working Tree nicht leer ist
-
-Temporarer Override (nur bei Bedarf):
-
-```bash
-CADDYAPP_SKIP_AUTOCOMMIT=1 make build
-```
 
 ## Verbindliche Feature-Dokumentationsregel
 
@@ -41,7 +30,7 @@ Bei neuen Features muss automatisch ein Feature-Dokument erzeugt werden.
 Technische Umsetzung im Repo:
 
 - `scripts/ensure_feature_doc.sh`
-- wird durch `scripts/auto_commit_after_build.sh` vor dem Commit ausgefuehrt
+- wird bei Bedarf vor dem Agent-Commit ausgefuehrt
 
 Automatische Erzeugung erfolgt, wenn:
 
@@ -61,5 +50,5 @@ Hinweise:
 
 1. Aenderung implementieren
 2. `make build` (oder `make release`) ausfuehren
-3. Pruefen, dass Auto-Commit erstellt wurde
+3. Agent-Commit mit kurzer Message erstellen
 4. Bei Feature-Branch pruefen, dass Feature-Dokument erzeugt wurde
