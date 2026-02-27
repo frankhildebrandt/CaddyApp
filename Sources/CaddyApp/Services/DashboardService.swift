@@ -17,10 +17,12 @@ actor DashboardService {
         let runtimeTargets = runtimeService.discoverTargets()
         let customConfig = customConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
             customRoutes: customConfig.customRoutes,
-            onDemandApps: customConfig.onDemandApps
+            onDemandApps: customConfig.onDemandApps,
+            multipassServices: customConfig.multipassServices
         )
         var caddyInstall = installService.loadStatus()
         var tlsStatus = tlsService.status()
@@ -60,6 +62,7 @@ actor DashboardService {
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
             onDemandAppStatuses: onDemandAppStatuses,
+            multipassServiceStatuses: multipassServiceStatuses,
             routes: routes,
             warnings: warnings,
             autoSetupReport: autoSetupReport
@@ -71,10 +74,12 @@ actor DashboardService {
         let runtimeTargets = runtimeService.discoverTargets()
         let customConfig = customConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
             customRoutes: customConfig.customRoutes,
-            onDemandApps: customConfig.onDemandApps
+            onDemandApps: customConfig.onDemandApps,
+            multipassServices: customConfig.multipassServices
         )
         let configPreview = configService.preview(
             for: routes,
@@ -99,6 +104,7 @@ actor DashboardService {
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
             onDemandAppStatuses: onDemandAppStatuses,
+            multipassServiceStatuses: multipassServiceStatuses,
             routes: routes,
             warnings: warnings,
             autoSetupReport: snapshot.autoSetupReport

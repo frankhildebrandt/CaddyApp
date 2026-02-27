@@ -24,6 +24,16 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - `scripts/`: build helpers and workflow automation scripts
 - `assets/`: app icon and systray graphics
 
+## Multipass Service Configuration
+
+- Multipass VM discovery remains best effort via `multipass list --format json`.
+- Optional VM-side auto-configuration file: `/etc/caddy-app.yaml`.
+- Imported and manual Multipass services are stored in app custom config (`multipassServices`) with:
+  - host + wildcard routing (`*.<service>.<vm>.mp.localhost`)
+  - target port + scheme (`http` / `https`)
+  - VM auto-start/auto-stop behavior
+  - systemd unit configuration and control (`start` / `restart` / `stop`)
+
 ## Build and Run
 
 - `make build`: debug build + app bundle generation

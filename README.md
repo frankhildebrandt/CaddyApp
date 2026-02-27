@@ -23,6 +23,8 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Root certificate trust action uses the macOS administrator dialog (no terminal password prompt required)
 - Multipass / Podman discovery stubs (best effort)
 - Automatic Multipass route: `{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
+- Multipass service config with per-service host/port/scheme, VM auto-start/stop, and systemd start/restart/stop controls
+- Multipass YAML auto-config import from `/etc/caddy-app.yaml` (service URLs follow `*.<service>.<vm>.mp.localhost`)
 - YAML-based app repository feed under `docs/repository/` (GitHub Pages ready)
 - On-Demand preset picker supports web repository sources (`repositories.yaml` / `apps/index.yaml`) with update + import flow
 - Feature progress documents in `docs/features/`

@@ -21,6 +21,10 @@ actor OnDemandAppsService {
     private var appIDByHost: [String: UUID] = [:]
     private var states: [UUID: AppState] = [:]
     private var startTasks: [UUID: Task<Void, Never>] = [:]
+    private var multipassServicesByID: [UUID: MultipassServiceDraft] = [:]
+    private var multipassStates: [UUID: AppState] = [:]
+    private var multipassStartTasks: [UUID: Task<Void, Never>] = [:]
+    private var multipassSystemdStatusByID: [UUID: String] = [:]
 
     func startIfNeeded() {
         startListenerIfNeeded()
@@ -28,16 +32,29 @@ actor OnDemandAppsService {
     }
 
     func reloadConfiguration() {
-        let config = configStore.load()
+        var config = configStore.load()
+        if let synced = syncMultipassConfigFromYAML(base: config) {
+            config = synced
+        }
         let apps = config.onDemandApps
         appsByID = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
         appIDByHost = Dictionary(uniqueKeysWithValues: apps.map { (Self.normalizeHostKey($0.host), $0.id) })
+        let multipassServices = config.multipassServices
+        multipassServicesByID = Dictionary(uniqueKeysWithValues: multipassServices.map { ($0.id, $0) })
 
         let validIDs = Set(apps.map(\.id))
         states = states.filter { validIDs.contains($0.key) }
         startTasks = startTasks.filter { validIDs.contains($0.key) }
         for app in apps where states[app.id] == nil {
             states[app.id] = AppState(phase: app.enabled ? .stopped : .stopped)
+        }
+
+        let validMultipassIDs = Set(multipassServices.map(\.id))
+        multipassStates = multipassStates.filter { validMultipassIDs.contains($0.key) }
+        multipassStartTasks = multipassStartTasks.filter { validMultipassIDs.contains($0.key) }
+        multipassSystemdStatusByID = multipassSystemdStatusByID.filter { validMultipassIDs.contains($0.key) }
+        for service in multipassServices where multipassStates[service.id] == nil {
+            multipassStates[service.id] = AppState(phase: .stopped)
         }
     }
 
@@ -64,6 +81,39 @@ actor OnDemandAppsService {
             }
     }
 
+    func multipassStatuses() -> [MultipassServiceRuntimeStatus] {
+        refreshMultipassStatesFromRuntime()
+        return multipassServicesByID.values
+            .sorted {
+                if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
+                    return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
+                }
+                return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+            }
+            .map { service in
+                let state = multipassStates[service.id] ?? AppState()
+                return MultipassServiceRuntimeStatus(
+                    id: service.id,
+                    vmName: service.vmName,
+                    serviceName: service.serviceName,
+                    host: service.host,
+                    targetPort: service.targetPort,
+                    scheme: service.scheme,
+                    enabled: service.enabled,
+                    autoStartVM: service.autoStartVM,
+                    autoStopVM: service.autoStopVM,
+                    idleTimeoutSeconds: service.idleTimeoutSeconds,
+                    systemdUnit: service.systemdUnit,
+                    phase: service.enabled ? state.phase : .stopped,
+                    vmStatus: vmIsRunning(service.vmName) ? "running" : "stopped",
+                    systemdStatus: multipassSystemdStatusByID[service.id] ?? "unknown",
+                    lastAccessAt: state.lastAccessAt,
+                    lastActionAt: state.lastActionAt,
+                    lastError: state.lastError
+                )
+            }
+    }
+
     func startApp(id: UUID) async -> OnDemandAppControlResult {
         guard appsByID[id] != nil else {
             return OnDemandAppControlResult(succeeded: false, message: "App not found", performedAt: Date())
@@ -74,6 +124,23 @@ actor OnDemandAppsService {
 
     func stopApp(id: UUID) async -> OnDemandAppControlResult {
         let result = stop(appID: id, reason: "manual")
+        return OnDemandAppControlResult(succeeded: result.succeeded, message: result.message, performedAt: Date())
+    }
+
+    func controlMultipassService(id: UUID, action: MultipassServiceControlAction) async -> OnDemandAppControlResult {
+        let result: ActionResult
+        switch action {
+        case .start:
+            result = await ensureMultipassStartedAndWarm(serviceID: id)
+        case .stop:
+            result = stopMultipass(serviceID: id, reason: "manual")
+        case .startSystemd:
+            result = systemdCommand(serviceID: id, action: "start")
+        case .restartSystemd:
+            result = systemdCommand(serviceID: id, action: "restart")
+        case .stopSystemd:
+            result = systemdCommand(serviceID: id, action: "stop")
+        }
         return OnDemandAppControlResult(succeeded: result.succeeded, message: result.message, performedAt: Date())
     }
 
@@ -138,6 +205,13 @@ actor OnDemandAppsService {
                 _ = stop(appID: app.id, reason: "idle timeout")
             }
         }
+        for service in multipassServicesByID.values where service.enabled && service.autoStopVM {
+            guard let state = multipassStates[service.id], state.phase == .running, let lastAccessAt = state.lastAccessAt else { continue }
+            let idleSeconds = now.timeIntervalSince(lastAccessAt)
+            if idleSeconds >= Double(max(service.idleTimeoutSeconds, 15)) {
+                _ = stopMultipass(serviceID: service.id, reason: "idle timeout")
+            }
+        }
     }
 
     private func refreshStatesFromRuntime() {
@@ -167,6 +241,40 @@ actor OnDemandAppsService {
         }
     }
 
+    private func refreshMultipassStatesFromRuntime() {
+        for service in multipassServicesByID.values {
+            var state = multipassStates[service.id] ?? AppState()
+            guard service.enabled else {
+                state.phase = .stopped
+                multipassStates[service.id] = state
+                continue
+            }
+
+            let vmRunning = vmIsRunning(service.vmName)
+            let systemdStatus = fetchSystemdStatus(service)
+            multipassSystemdStatusByID[service.id] = systemdStatus
+
+            if vmRunning {
+                if service.systemdUnit.isEmpty {
+                    if state.phase != .starting && state.phase != .stopping {
+                        state.phase = .running
+                    }
+                } else if systemdStatus == "active" {
+                    if state.phase != .starting && state.phase != .stopping {
+                        state.phase = .running
+                    }
+                } else if state.phase == .running {
+                    state.phase = .stopped
+                }
+            } else {
+                if state.phase != .starting {
+                    state.phase = .stopped
+                }
+            }
+            multipassStates[service.id] = state
+        }
+    }
+
     func handleProxyRequest(_ request: HTTPGatewayRequest) async -> HTTPGatewayResponse {
         if request.headers.contains(where: { $0.0.caseInsensitiveCompare("Transfer-Encoding") == .orderedSame && $0.1.lowercased().contains("chunked") }) {
             return .text(status: 501, body: "Chunked request bodies are not supported by the on-demand gateway yet")
@@ -176,8 +284,8 @@ actor OnDemandAppsService {
             return response
         case let .waiting(response):
             return response
-        case let .ready(app):
-            return await proxy(request, to: app)
+        case let .ready(backend):
+            return await proxy(request, to: backend.upstream)
         }
     }
 
@@ -187,9 +295,9 @@ actor OnDemandAppsService {
             return .failure(response)
         case let .waiting(response):
             return .failure(response)
-        case let .ready(app):
-            AppLogService.logEvent("On-demand websocket tunnel prepared: app=\(app.name) target=\(app.targetHost):\(app.targetPort)")
-            return .ready(host: app.targetHost, port: app.targetPort)
+        case let .ready(backend):
+            AppLogService.logEvent("On-demand websocket tunnel prepared: app=\(backend.name) target=\(backend.upstream.targetHost):\(backend.upstream.targetPort)")
+            return .ready(host: backend.upstream.targetHost, port: backend.upstream.targetPort)
         }
     }
 
@@ -265,10 +373,10 @@ actor OnDemandAppsService {
         return ActionResult(succeeded: false, message: "Timed out waiting for \(app.targetHost):\(app.targetPort)")
     }
 
-    private func proxy(_ incoming: HTTPGatewayRequest, to app: OnDemandAppDraft) async -> HTTPGatewayResponse {
-        let target = "http://\(app.targetHost):\(app.targetPort)\(incoming.target)"
+    private func proxy(_ incoming: HTTPGatewayRequest, to upstream: UpstreamTarget) async -> HTTPGatewayResponse {
+        let target = "\(upstream.scheme.rawValue)://\(upstream.targetHost):\(upstream.targetPort)\(incoming.target)"
         guard let url = URL(string: target) else {
-            return .text(status: 500, body: "Invalid upstream URL for \(app.name)")
+            return .text(status: 500, body: "Invalid upstream URL for \(upstream.targetHost):\(upstream.targetPort)")
         }
 
         var request = URLRequest(url: url)
@@ -281,7 +389,7 @@ actor OnDemandAppsService {
             if ["host", "content-length", "connection", "proxy-connection", "accept-encoding"].contains(lower) { continue }
             request.setValue(value, forHTTPHeaderField: name)
         }
-        request.setValue(app.targetHost, forHTTPHeaderField: "Host")
+        request.setValue(upstream.targetHost, forHTTPHeaderField: "Host")
         // Prevent compressed upstream payloads because URLSession may transparently decode,
         // which can otherwise leave mismatched Content-Encoding headers for the browser.
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
@@ -316,25 +424,35 @@ actor OnDemandAppsService {
             return .failure(.text(status: 400, body: "Missing Host header"))
         }
         let hostKey = Self.normalizeHostKey(host)
-        guard let appID = appIDByHost[hostKey], let app = appsByID[appID] else {
-            return .failure(.text(status: 404, body: "Unknown on-demand app host: \(host)"))
+        guard let mapped = resolveBackend(forHost: hostKey) else {
+            return .failure(.text(status: 404, body: "Unknown on-demand app host: \(hostKey)"))
         }
-        guard app.enabled else {
+        guard mapped.isEnabled else {
             return .failure(.text(status: 503, body: "On-demand app is disabled"))
         }
-        AppLogService.logEvent("On-demand request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(app.name)")
+        AppLogService.logEvent("On-demand request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(mapped.name)")
 
-        let startResult = await ensureStartedAndWarm(appID: appID)
-        guard startResult.succeeded else {
-            return .failure(.text(status: 502, body: "Failed to start app '\(app.name)': \(startResult.message)"))
+        let startResult: ActionResult
+        let backend: PreparedBackend
+        switch mapped {
+        case let .onDemand(appID, app):
+            startResult = await ensureStartedAndWarm(appID: appID)
+            backend = PreparedBackend(name: app.name, upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort))
+        case let .multipass(serviceID, service):
+            startResult = await ensureMultipassStartedAndWarm(serviceID: serviceID)
+            let targetHost = multipassVMIPv4Address(service.vmName) ?? ""
+            backend = PreparedBackend(
+                name: "\(service.vmName)/\(service.serviceName)",
+                upstream: UpstreamTarget(scheme: service.scheme, targetHost: targetHost, targetPort: service.targetPort)
+            )
         }
 
-        var state = states[appID] ?? AppState()
-        state.lastAccessAt = Date()
-        state.lastActionAt = Date()
-        state.phase = .running
-        states[appID] = state
-        return .ready(app)
+        guard startResult.succeeded else {
+            return .failure(.text(status: 502, body: "Failed to start app '\(mapped.name)': \(startResult.message)"))
+        }
+
+        markBackendAccess(mapped)
+        return .ready(backend)
     }
 
     private func prepareAppForHTTP(_ request: HTTPGatewayRequest) async -> PreparedAppResult {
@@ -342,43 +460,76 @@ actor OnDemandAppsService {
             return .failure(.text(status: 400, body: "Missing Host header"))
         }
         let hostKey = Self.normalizeHostKey(host)
-        guard let appID = appIDByHost[hostKey], let app = appsByID[appID] else {
+        guard let mapped = resolveBackend(forHost: hostKey) else {
             return .failure(.text(status: 404, body: "Unknown on-demand app host: \(host)"))
         }
-        guard app.enabled else {
+        guard mapped.isEnabled else {
             return .failure(.text(status: 503, body: "On-demand app is disabled"))
         }
 
-        AppLogService.logEvent("On-demand HTTP request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(app.name)")
+        AppLogService.logEvent("On-demand HTTP request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(mapped.name)")
 
-        var state = states[appID] ?? AppState()
-        let runningCheck = isRunning(app)
-        if runningCheck.isRunning && state.phase != .starting {
-            let warmup = await waitForHealth(app)
-            if warmup.succeeded {
+        switch mapped {
+        case let .onDemand(appID, app):
+            var state = states[appID] ?? AppState()
+            let runningCheck = isRunning(app)
+            if runningCheck.isRunning && state.phase != .starting {
+                let warmup = await waitForHealth(app)
+                if warmup.succeeded {
+                    state.lastAccessAt = Date()
+                    state.lastActionAt = Date()
+                    state.phase = .running
+                    state.lastError = nil
+                    states[appID] = state
+                    return .ready(PreparedBackend(name: app.name, upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort)))
+                }
+                state.phase = .starting
+                state.lastError = warmup.message
+                state.lastActionAt = Date()
+                states[appID] = state
+                queueBackgroundStartIfNeeded(appID: appID)
+                return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase))
+            }
+
+            queueBackgroundStartIfNeeded(appID: appID)
+            state = states[appID] ?? state
+            state.phase = .starting
+            state.lastActionAt = Date()
+            states[appID] = state
+            return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase))
+        case let .multipass(serviceID, service):
+            var state = multipassStates[serviceID] ?? AppState()
+            if isMultipassServiceReady(serviceID: serviceID, service: service), state.phase != .starting {
+                let ipAddress = multipassVMIPv4Address(service.vmName) ?? ""
                 state.lastAccessAt = Date()
                 state.lastActionAt = Date()
                 state.phase = .running
                 state.lastError = nil
-                states[appID] = state
-                return .ready(app)
+                multipassStates[serviceID] = state
+                return .ready(
+                    PreparedBackend(
+                        name: "\(service.vmName)/\(service.serviceName)",
+                        upstream: UpstreamTarget(scheme: service.scheme, targetHost: ipAddress, targetPort: service.targetPort)
+                    )
+                )
             }
-            // Keep serving the waiting/status page while the app is not reachable yet.
-            // This avoids hard gateway errors for transient warm-up gaps.
-            state.phase = .starting
-            state.lastError = warmup.message
-            state.lastActionAt = Date()
-            states[appID] = state
-            queueBackgroundStartIfNeeded(appID: appID)
-            return .waiting(waitingPageResponse(for: app, phase: state.phase))
-        }
 
-        queueBackgroundStartIfNeeded(appID: appID)
-        state = states[appID] ?? state
-        state.phase = .starting
-        state.lastActionAt = Date()
-        states[appID] = state
-        return .waiting(waitingPageResponse(for: app, phase: state.phase))
+            queueBackgroundMultipassStartIfNeeded(serviceID: serviceID)
+            state = multipassStates[serviceID] ?? state
+            state.phase = .starting
+            state.lastActionAt = Date()
+            multipassStates[serviceID] = state
+            return .waiting(
+                waitingPageResponse(
+                    forName: service.serviceName,
+                    host: service.host,
+                    runtime: "Multipass",
+                    unit: service.systemdUnit.isEmpty ? "Service" : "systemd: \(service.systemdUnit)",
+                    target: "\(service.vmName):\(service.targetPort)",
+                    phase: state.phase
+                )
+            )
+        }
     }
 
     private func queueBackgroundStartIfNeeded(appID: UUID) {
@@ -389,12 +540,27 @@ actor OnDemandAppsService {
         }
     }
 
-    private func waitingPageResponse(for app: OnDemandAppDraft, phase: OnDemandAppPhase) -> HTTPGatewayResponse {
-        let safeName = htmlEscaped(app.name.isEmpty ? "App" : app.name)
-        let safeHost = htmlEscaped(app.host)
-        let safeRuntime = htmlEscaped(app.runtime.label)
-        let safeUnit = htmlEscaped("\(app.unitKind.label): \(app.unitName)")
-        let safeTarget = htmlEscaped("\(app.targetHost):\(app.targetPort)")
+    private func queueBackgroundMultipassStartIfNeeded(serviceID: UUID) {
+        guard multipassStartTasks[serviceID] == nil else { return }
+        multipassStartTasks[serviceID] = Task { [weak self] in
+            guard let self else { return }
+            _ = await self.ensureMultipassStartedAndWarm(serviceID: serviceID)
+        }
+    }
+
+    private func waitingPageResponse(
+        forName name: String,
+        host: String,
+        runtime: String,
+        unit: String,
+        target: String,
+        phase: OnDemandAppPhase
+    ) -> HTTPGatewayResponse {
+        let safeName = htmlEscaped(name.isEmpty ? "App" : name)
+        let safeHost = htmlEscaped(host)
+        let safeRuntime = htmlEscaped(runtime)
+        let safeUnit = htmlEscaped(unit)
+        let safeTarget = htmlEscaped(target)
         let safePhase = htmlEscaped(phase == .starting ? "Starting" : phase.label)
 
         let html = """
@@ -579,6 +745,373 @@ actor OnDemandAppsService {
             return 180
         }
         return 30
+    }
+
+    private func resolveBackend(forHost host: String) -> ResolvedBackend? {
+        if let appID = appIDByHost[host], let app = appsByID[appID] {
+            return .onDemand(appID: appID, app: app)
+        }
+
+        for service in multipassServicesByID.values where service.enabled {
+            let baseHost = Self.normalizeHostKey(service.host)
+            if host == baseHost || host.hasSuffix(".\(baseHost)") {
+                return .multipass(serviceID: service.id, service: service)
+            }
+        }
+
+        return nil
+    }
+
+    private func markBackendAccess(_ backend: ResolvedBackend) {
+        switch backend {
+        case let .onDemand(appID, _):
+            var state = states[appID] ?? AppState()
+            state.lastAccessAt = Date()
+            state.lastActionAt = Date()
+            state.phase = .running
+            states[appID] = state
+        case let .multipass(serviceID, _):
+            var state = multipassStates[serviceID] ?? AppState()
+            state.lastAccessAt = Date()
+            state.lastActionAt = Date()
+            state.phase = .running
+            multipassStates[serviceID] = state
+        }
+    }
+
+    private func ensureMultipassStartedAndWarm(serviceID: UUID) async -> ActionResult {
+        defer { multipassStartTasks[serviceID] = nil }
+        guard let service = multipassServicesByID[serviceID] else {
+            return ActionResult(succeeded: false, message: "Multipass service not found")
+        }
+
+        var state = multipassStates[serviceID] ?? AppState()
+        state.phase = .starting
+        state.lastActionAt = Date()
+        state.lastError = nil
+        multipassStates[serviceID] = state
+
+        if !vmIsRunning(service.vmName) {
+            if !service.autoStartVM {
+                let message = "VM '\(service.vmName)' is stopped and autoStartVM is disabled"
+                state.phase = .error
+                state.lastError = message
+                multipassStates[serviceID] = state
+                return ActionResult(succeeded: false, message: message)
+            }
+            let startResult = runner.runShell("multipass start \(shellEscapeArgument(service.vmName))")
+            if !startResult.isSuccess {
+                let detail = commandDetail(startResult, fallback: "Failed to start VM \(service.vmName)")
+                state.phase = .error
+                state.lastError = detail
+                multipassStates[serviceID] = state
+                return ActionResult(succeeded: false, message: detail)
+            }
+        }
+
+        guard let ipAddress = multipassVMIPv4Address(service.vmName), !ipAddress.isEmpty else {
+            let message = "No IPv4 address for VM \(service.vmName)"
+            state.phase = .error
+            state.lastError = message
+            multipassStates[serviceID] = state
+            return ActionResult(succeeded: false, message: message)
+        }
+
+        if !service.systemdUnit.isEmpty {
+            let status = fetchSystemdStatus(service)
+            multipassSystemdStatusByID[serviceID] = status
+            if status != "active", service.autoStartSystemd {
+                let command = multipassSystemctlCommand(vmName: service.vmName, action: "start", unit: service.systemdUnit)
+                let startSystemd = runner.runShell(command)
+                if !startSystemd.isSuccess {
+                    let detail = commandDetail(startSystemd, fallback: "Failed to start systemd unit \(service.systemdUnit)")
+                    state.phase = .error
+                    state.lastError = detail
+                    multipassStates[serviceID] = state
+                    return ActionResult(succeeded: false, message: detail)
+                }
+                multipassSystemdStatusByID[serviceID] = fetchSystemdStatus(service)
+            }
+        }
+
+        let warmup = await waitForMultipassHealth(service: service, ipAddress: ipAddress)
+        state = multipassStates[serviceID] ?? AppState()
+        state.phase = warmup.succeeded ? .running : .error
+        state.lastActionAt = Date()
+        state.lastError = warmup.succeeded ? nil : warmup.message
+        multipassStates[serviceID] = state
+        return warmup
+    }
+
+    private func stopMultipass(serviceID: UUID, reason _: String) -> ActionResult {
+        guard let service = multipassServicesByID[serviceID] else {
+            return ActionResult(succeeded: false, message: "Multipass service not found")
+        }
+
+        var state = multipassStates[serviceID] ?? AppState()
+        state.phase = .stopping
+        state.lastActionAt = Date()
+        multipassStates[serviceID] = state
+
+        if !service.systemdUnit.isEmpty, service.autoStopSystemd {
+            _ = runner.runShell(multipassSystemctlCommand(vmName: service.vmName, action: "stop", unit: service.systemdUnit))
+        }
+        if service.autoStopVM {
+            _ = runner.runShell("multipass stop \(shellEscapeArgument(service.vmName))")
+        }
+
+        state = multipassStates[serviceID] ?? AppState()
+        state.phase = .stopped
+        state.lastActionAt = Date()
+        state.lastError = nil
+        multipassStates[serviceID] = state
+        return ActionResult(succeeded: true, message: "Stopped")
+    }
+
+    private func systemdCommand(serviceID: UUID, action: String) -> ActionResult {
+        guard let service = multipassServicesByID[serviceID] else {
+            return ActionResult(succeeded: false, message: "Multipass service not found")
+        }
+        guard !service.systemdUnit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return ActionResult(succeeded: false, message: "No systemd unit configured")
+        }
+        if !vmIsRunning(service.vmName) {
+            _ = runner.runShell("multipass start \(shellEscapeArgument(service.vmName))")
+        }
+        let result = runner.runShell(multipassSystemctlCommand(vmName: service.vmName, action: action, unit: service.systemdUnit))
+        let status = fetchSystemdStatus(service)
+        multipassSystemdStatusByID[serviceID] = status
+        if result.isSuccess {
+            return ActionResult(succeeded: true, message: "systemd \(action) succeeded (\(status))")
+        }
+        return ActionResult(succeeded: false, message: commandDetail(result, fallback: "systemd \(action) failed"))
+    }
+
+    private func isMultipassServiceReady(serviceID: UUID, service: MultipassServiceDraft) -> Bool {
+        guard vmIsRunning(service.vmName) else { return false }
+        if !service.systemdUnit.isEmpty {
+            let status = fetchSystemdStatus(service)
+            multipassSystemdStatusByID[serviceID] = status
+            if status != "active" { return false }
+        }
+        guard let ipAddress = multipassVMIPv4Address(service.vmName), !ipAddress.isEmpty else { return false }
+        let url = "\(service.scheme.rawValue)://\(ipAddress):\(service.targetPort)\(normalizedHealthPath(service.healthPath))"
+        return probe(url: url, insecureTLS: service.scheme == .https)
+    }
+
+    private func waitForMultipassHealth(service: MultipassServiceDraft, ipAddress: String) async -> ActionResult {
+        let deadline = Date().addingTimeInterval(60)
+        let url = "\(service.scheme.rawValue)://\(ipAddress):\(service.targetPort)\(normalizedHealthPath(service.healthPath))"
+        while Date() < deadline {
+            if probe(url: url, insecureTLS: service.scheme == .https) {
+                return ActionResult(succeeded: true, message: "Multipass service is reachable")
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        return ActionResult(succeeded: false, message: "Timed out waiting for \(service.vmName):\(service.targetPort)")
+    }
+
+    private func normalizedHealthPath(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "/" }
+        return trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+    }
+
+    private func vmIsRunning(_ vmName: String) -> Bool {
+        let result = runner.runShell("multipass info \(shellEscapeArgument(vmName)) --format json")
+        guard result.isSuccess,
+              let data = result.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let info = json["info"] as? [String: Any],
+              let vm = info[vmName] as? [String: Any] else { return false }
+        let state = (vm["state"] as? String) ?? ""
+        return state.lowercased() == "running"
+    }
+
+    private func multipassVMIPv4Address(_ vmName: String) -> String? {
+        let result = runner.runShell("multipass info \(shellEscapeArgument(vmName)) --format json")
+        guard result.isSuccess,
+              let data = result.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let info = json["info"] as? [String: Any],
+              let vm = info[vmName] as? [String: Any],
+              let ipv4 = vm["ipv4"] as? [String],
+              let first = ipv4.first else { return nil }
+        return first
+    }
+
+    private func fetchSystemdStatus(_ service: MultipassServiceDraft) -> String {
+        guard !service.systemdUnit.isEmpty else { return "n/a" }
+        guard vmIsRunning(service.vmName) else { return "vm-stopped" }
+        let command = "multipass exec \(shellEscapeArgument(service.vmName)) -- systemctl is-active \(shellEscapeArgument(service.systemdUnit))"
+        let result = runner.runShell(command)
+        let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            return result.isSuccess ? "active" : "unknown"
+        }
+        return text
+    }
+
+    private func multipassSystemctlCommand(vmName: String, action: String, unit: String) -> String {
+        "multipass exec \(shellEscapeArgument(vmName)) -- sudo systemctl \(action) \(shellEscapeArgument(unit))"
+    }
+
+    private func commandDetail(_ result: CommandResult, fallback: String) -> String {
+        let text = [result.stderr, result.stdout]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? fallback : text
+    }
+
+    private func probe(url: String, insecureTLS: Bool = false) -> Bool {
+        let escapedURL = url.replacingOccurrences(of: "'", with: "'\\''")
+        let insecureFlag = insecureTLS ? "-k " : ""
+        let result = runner.runShell("curl \(insecureFlag)-sS -o /dev/null --connect-timeout 1 --max-time 2 '\(escapedURL)'")
+        return result.isSuccess
+    }
+
+    private func syncMultipassConfigFromYAML(base: CustomConfigSettings) -> CustomConfigSettings? {
+        guard let listData = runner.runShell("multipass list --format json").stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: listData) as? [String: Any],
+              let list = json["list"] as? [[String: Any]] else {
+            return nil
+        }
+
+        let existingByKey = Dictionary(uniqueKeysWithValues: base.multipassServices.map { (multipassServiceKey(vm: $0.vmName, service: $0.serviceName), $0) })
+        var merged = base.multipassServices.filter { !$0.managedByYAML }
+        var changed = false
+
+        for item in list {
+            guard let vmName = item["name"] as? String else { continue }
+            let result = runner.runShell("multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'")
+            guard result.isSuccess else { continue }
+            let parsed = parseMultipassYAML(result.stdout, vmName: vmName)
+            for draft in parsed {
+                let key = multipassServiceKey(vm: draft.vmName, service: draft.serviceName)
+                if let existing = existingByKey[key], existing.managedByYAML {
+                    var updated = draft
+                    updated.id = existing.id
+                    merged.append(updated)
+                    if updated != existing { changed = true }
+                } else if existingByKey[key] == nil {
+                    merged.append(draft)
+                    changed = true
+                }
+            }
+        }
+
+        guard changed else { return nil }
+        var updated = base
+        updated.multipassServices = merged.sorted {
+            if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
+                return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
+            }
+            return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+        }
+        try? configStore.save(updated)
+        return updated
+    }
+
+    private func parseMultipassYAML(_ yaml: String, vmName: String) -> [MultipassServiceDraft] {
+        var inServices = false
+        var current: [String: String] = [:]
+        var items: [[String: String]] = []
+
+        for rawLine in yaml.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = String(rawLine)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            if trimmed == "services:" {
+                inServices = true
+                continue
+            }
+            guard inServices else { continue }
+
+            if trimmed.hasPrefix("- ") {
+                if !current.isEmpty {
+                    items.append(current)
+                    current = [:]
+                }
+                let inline = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                if let parsed = parseYAMLKeyValue(inline) {
+                    current[parsed.0] = parsed.1
+                }
+                continue
+            }
+
+            if let parsed = parseYAMLKeyValue(trimmed) {
+                current[parsed.0] = parsed.1
+            }
+        }
+        if !current.isEmpty {
+            items.append(current)
+        }
+
+        return items.compactMap { item in
+            guard let rawService = item["service"] ?? item["name"],
+                  let portText = item["port"],
+                  let port = Int(portText),
+                  port > 0, port <= 65535 else { return nil }
+            let vmLabel = dnsLabel(vmName) ?? vmName.lowercased()
+            let serviceLabel = dnsLabel(rawService) ?? rawService.lowercased()
+            let host = "\(serviceLabel).\(vmLabel).mp.localhost"
+            let unit = item["systemd"] ?? item["systemd_unit"] ?? item["unit"] ?? ""
+            return MultipassServiceDraft(
+                vmName: vmName,
+                serviceName: rawService,
+                host: host,
+                targetPort: port,
+                scheme: (item["scheme"]?.lowercased() == "https") ? .https : .http,
+                healthPath: item["health_path"] ?? "/",
+                enabled: parseBool(item["enabled"], default: true),
+                autoStartVM: parseBool(item["auto_start_vm"], default: true),
+                autoStopVM: parseBool(item["auto_stop_vm"], default: true),
+                autoStartSystemd: parseBool(item["auto_start_systemd"], default: true),
+                autoStopSystemd: parseBool(item["auto_stop_systemd"], default: false),
+                idleTimeoutSeconds: Int(item["idle_timeout_seconds"] ?? "") ?? 600,
+                systemdUnit: unit,
+                managedByYAML: true
+            )
+        }
+    }
+
+    private func parseYAMLKeyValue(_ text: String) -> (String, String)? {
+        guard let colon = text.firstIndex(of: ":") else { return nil }
+        let key = String(text[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
+        var value = String(text[text.index(after: colon)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+            value = String(value.dropFirst().dropLast())
+        }
+        if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
+            value = String(value.dropFirst().dropLast())
+        }
+        return key.isEmpty ? nil : (key, value)
+    }
+
+    private func parseBool(_ value: String?, default defaultValue: Bool) -> Bool {
+        guard let value else { return defaultValue }
+        let lowered = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ["true", "yes", "1", "on"].contains(lowered) { return true }
+        if ["false", "no", "0", "off"].contains(lowered) { return false }
+        return defaultValue
+    }
+
+    private func multipassServiceKey(vm: String, service: String) -> String {
+        "\(vm.lowercased())::\(service.lowercased())"
+    }
+
+    private func dnsLabel(_ value: String) -> String? {
+        let lowered = value.lowercased()
+        let mapped = lowered.map { character -> Character in
+            if character.isLetter || character.isNumber || character == "-" {
+                return character
+            }
+            return "-"
+        }
+        let label = String(mapped)
+            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return label.isEmpty ? nil : String(label.prefix(63))
     }
 
     private func start(_ app: OnDemandAppDraft) -> ActionResult {
@@ -1167,8 +1700,42 @@ private struct ParsedGatewayRequest {
     var remainder: Data
 }
 
+private struct UpstreamTarget {
+    var scheme: MultipassServiceScheme
+    var targetHost: String
+    var targetPort: Int
+}
+
+private struct PreparedBackend {
+    var name: String
+    var upstream: UpstreamTarget
+}
+
+private enum ResolvedBackend {
+    case onDemand(appID: UUID, app: OnDemandAppDraft)
+    case multipass(serviceID: UUID, service: MultipassServiceDraft)
+
+    var isEnabled: Bool {
+        switch self {
+        case let .onDemand(_, app):
+            return app.enabled
+        case let .multipass(_, service):
+            return service.enabled
+        }
+    }
+
+    var name: String {
+        switch self {
+        case let .onDemand(_, app):
+            return app.name
+        case let .multipass(_, service):
+            return "\(service.vmName)/\(service.serviceName)"
+        }
+    }
+}
+
 private enum PreparedAppResult {
-    case ready(OnDemandAppDraft)
+    case ready(PreparedBackend)
     case waiting(HTTPGatewayResponse)
     case failure(HTTPGatewayResponse)
 }
