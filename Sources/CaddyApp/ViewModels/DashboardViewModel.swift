@@ -208,6 +208,7 @@ final class DashboardViewModel: ObservableObject {
 
     func saveCustomConfig() {
         guard !isSavingCustomConfig else { return }
+        let existingSettings = customConfigStore.load()
 
         let normalizedRoutes = customRoutes.map { route in
             CustomRouteDraft(
@@ -251,6 +252,9 @@ final class DashboardViewModel: ObservableObject {
         onDemandApps = normalizedOnDemandApps
         customConfigValidationError = nil
         isSavingCustomConfig = true
+        let removedOnDemandApps = existingSettings.onDemandApps.filter { previous in
+            !normalizedOnDemandApps.contains(where: { $0.id == previous.id })
+        }
         let settings = CustomConfigSettings(
             customRoutes: normalizedRoutes,
             onDemandApps: normalizedOnDemandApps,
@@ -261,9 +265,19 @@ final class DashboardViewModel: ObservableObject {
             guard let self else { return }
             do {
                 try self.customConfigStore.save(settings)
+                let cleanupResults = await self.onDemandAppsService.deleteRuntimeUnits(for: removedOnDemandApps)
+                let cleanupFailures = cleanupResults.filter { !$0.succeeded }
+                let cleanupSummary: String
+                if removedOnDemandApps.isEmpty {
+                    cleanupSummary = ""
+                } else if cleanupFailures.isEmpty {
+                    cleanupSummary = " Entfernte On-Demand-Container/Pods wurden ebenfalls gelöscht."
+                } else {
+                    cleanupSummary = " Hinweis: \(cleanupFailures.count) Runtime-Unit(s) konnten nicht gelöscht werden."
+                }
                 self.lastCustomConfigSaveResult = CustomConfigSaveResult(
                     succeeded: true,
-                    message: "Custom routes/config lokal gespeichert. Snapshot wird aktualisiert (Auto-Reload bei gültiger Config).",
+                    message: "Custom routes/config lokal gespeichert. Snapshot wird aktualisiert (Auto-Reload bei gültiger Config).\(cleanupSummary)",
                     performedAt: Date()
                 )
                 self.isSavingCustomConfig = false

@@ -77,6 +77,12 @@ actor OnDemandAppsService {
         return OnDemandAppControlResult(succeeded: result.succeeded, message: result.message, performedAt: Date())
     }
 
+    func deleteRuntimeUnits(for apps: [OnDemandAppDraft]) -> [OnDemandAppControlResult] {
+        apps.map { app in
+            deleteRuntimeUnit(app)
+        }
+    }
+
     func markConfigSavedAndReload() {
         reloadConfiguration()
     }
@@ -629,6 +635,38 @@ actor OnDemandAppsService {
         return action
     }
 
+    private func deleteRuntimeUnit(_ app: OnDemandAppDraft) -> OnDemandAppControlResult {
+        let unitName = app.unitName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !unitName.isEmpty else {
+            return OnDemandAppControlResult(
+                succeeded: false,
+                message: "Unit name is empty",
+                performedAt: Date()
+            )
+        }
+
+        AppLogService.logEvent("On-demand delete requested: app=\(app.name) runtime=\(app.runtime.rawValue) unit=\(app.unitKind.rawValue):\(unitName)")
+        startTasks[app.id]?.cancel()
+        startTasks[app.id] = nil
+
+        let arguments: [String] = switch app.unitKind {
+        case .container: ["rm", "-f", unitName]
+        case .pod: ["pod", "rm", "-f", unitName]
+        }
+        let result = runRuntime(app, arguments: arguments)
+        let action = mapDeleteResult(result, app: app, unitName: unitName)
+
+        if action.succeeded {
+            AppLogService.logEvent("On-demand delete succeeded: app=\(app.name)")
+            appsByID.removeValue(forKey: app.id)
+            appIDByHost.removeValue(forKey: Self.normalizeHostKey(app.host))
+            states.removeValue(forKey: app.id)
+        } else {
+            AppLogService.logError("On-demand delete failed: app=\(app.name) error=\(action.message)")
+        }
+        return OnDemandAppControlResult(succeeded: action.succeeded, message: action.message, performedAt: Date())
+    }
+
     private func isRunning(_ app: OnDemandAppDraft) -> RunningCheckResult {
         switch app.unitKind {
         case .container:
@@ -660,6 +698,36 @@ actor OnDemandAppsService {
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return ActionResult(succeeded: false, message: detail.isEmpty ? fallback : detail)
+    }
+
+    private func mapDeleteResult(_ result: CommandResult, app: OnDemandAppDraft, unitName: String) -> ActionResult {
+        if result.isSuccess {
+            return mapCommandResult(
+                result,
+                fallback: "Failed to remove \(app.unitKind.label.lowercased()) \(unitName)"
+            )
+        }
+
+        let detail = [result.stderr, result.stdout]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if isNotFoundDeleteError(detail) {
+            return ActionResult(succeeded: true, message: "Already removed")
+        }
+        return ActionResult(
+            succeeded: false,
+            message: detail.isEmpty ? "Failed to remove \(app.unitKind.label.lowercased()) \(unitName)" : detail
+        )
+    }
+
+    private func isNotFoundDeleteError(_ message: String) -> Bool {
+        let lowered = message.lowercased()
+        return lowered.contains("no such container")
+            || lowered.contains("no container with name or id")
+            || lowered.contains("no such pod")
+            || lowered.contains("no pod with name or id")
+            || lowered.contains("could not find pod")
+            || lowered.contains("not found")
     }
 
     private func shellEscapeArgument(_ argument: String) -> String {

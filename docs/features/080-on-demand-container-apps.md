@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-02-26
+- Last Updated: 2026-02-27
 
 ## Goal
 
@@ -29,6 +29,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - [x] Default templates for Loki, Grafana, Kimai, and Ephe can be added from the UI with editable values.
 - [x] App state (stopped / starting / running / stopping / error) is visible in the app UI.
 - [x] Failures to start/stop are surfaced to the user with actionable logs or error messages.
+- [x] Deleting an on-demand app also removes the associated runtime unit (container/pod).
 
 ## Implementation Notes
 
@@ -49,3 +50,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-26: Implemented MVP on-demand app definitions, presets, Caddy route generation via local gateway, runtime start/stop logic (Docker/Podman), health warm-up, and idle auto-stop.
 - 2026-02-26: Added logging tab (CLI + start/stop events), manual on-demand app start/stop controls, runtime state refresh, and run-command fallback to existing container start after idle stop.
 - 2026-02-26: Added WebSocket upgrade support in the on-demand gateway via bidirectional TCP tunnel after HTTP Upgrade handshake forwarding.
+- 2026-02-27: Added runtime cleanup on app deletion (`container/pod rm -f`) with tolerant handling when unit is already missing.

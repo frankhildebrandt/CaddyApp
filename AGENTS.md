@@ -10,6 +10,8 @@ Dieses Dokument definiert verbindliche Regeln fuer Agenten/Automatisierung im Pr
 2. Vor Abschluss einer Aenderung muss mindestens ein erfolgreicher Build laufen.
 3. Build-Befehle bevorzugt ueber Makefile ausfuehren (`make build`, `make release`, `make check`).
 4. Dokumentation bei aenderungsrelevanten Themen mitpflegen (`README.md`, `docs/PROJECT.md`, `docs/features/*`).
+5. Existiert dieses Feature bereits, muss es aktualisiert werden, ansonsten wird ein neues Feature-Dokument angelegt.
+6. Handelt es sich um ein neues Feature, muss automatisch ein neues Feature-Dokument angelegt werden.
 
 ## Verbindliche Commit-Regel
 
