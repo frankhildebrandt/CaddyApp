@@ -979,7 +979,7 @@ actor OnDemandAppsService {
 
         let existingByKey = Dictionary(uniqueKeysWithValues: base.multipassServices.map { (multipassServiceKey(vm: $0.vmName, service: $0.serviceName), $0) })
         var merged = base.multipassServices.filter { !$0.managedByYAML }
-        var changed = false
+        var discoveredYAMLKeys = Set<String>()
 
         for item in list {
             guard let vmName = item["name"] as? String else { continue }
@@ -988,26 +988,32 @@ actor OnDemandAppsService {
             let parsed = parseMultipassYAML(result.stdout, vmName: vmName)
             for draft in parsed {
                 let key = multipassServiceKey(vm: draft.vmName, service: draft.serviceName)
+                discoveredYAMLKeys.insert(key)
                 if let existing = existingByKey[key], existing.managedByYAML {
                     var updated = draft
                     updated.id = existing.id
                     merged.append(updated)
-                    if updated != existing { changed = true }
                 } else if existingByKey[key] == nil {
                     merged.append(draft)
-                    changed = true
                 }
             }
         }
 
-        guard changed else { return nil }
-        var updated = base
-        updated.multipassServices = merged.sorted {
+        let previousYAMLKeys = Set(base.multipassServices.filter(\.managedByYAML).map {
+            multipassServiceKey(vm: $0.vmName, service: $0.serviceName)
+        })
+        let yamlSetChanged = previousYAMLKeys != discoveredYAMLKeys
+
+        let sortedMerged = merged.sorted {
             if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
                 return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
             }
             return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
         }
+
+        guard yamlSetChanged || sortedMerged != base.multipassServices else { return nil }
+        var updated = base
+        updated.multipassServices = sortedMerged
         try? configStore.save(updated)
         return updated
     }
