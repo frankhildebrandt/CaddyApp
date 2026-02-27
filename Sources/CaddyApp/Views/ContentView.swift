@@ -867,29 +867,8 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach($viewModel.customRoutes) { $route in
-                                HStack(alignment: .center, spacing: 8) {
-                                    Toggle("", isOn: $route.enabled)
-                                        .labelsHidden()
-                                        .toggleStyle(.checkbox)
-
-                                    TextField("Host (z. B. app.localhost)", text: $route.host)
-                                        .textFieldStyle(.roundedBorder)
-
-                                    Text("->")
-                                        .foregroundStyle(.secondary)
-
-                                    TextField("Upstream (z. B. 127.0.0.1:3000)", text: $route.upstream)
-                                        .textFieldStyle(.roundedBorder)
-
-                                    Button(role: .destructive) {
-                                        viewModel.removeCustomRoute(id: route.id)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Route entfernen")
-                                }
+                            ForEach(Array(viewModel.customRoutes.indices), id: \.self) { index in
+                                customRouteRow(at: index)
                             }
                         }
                     }
@@ -979,6 +958,34 @@ struct ContentView: View {
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    private func customRouteRow(at index: Int) -> some View {
+        let routeBinding = $viewModel.customRoutes[index]
+        let routeID = routeBinding.wrappedValue.id
+
+        return HStack(alignment: .center, spacing: 8) {
+            Toggle("", isOn: routeBinding.enabled)
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+
+            TextField("Host (z. B. app.localhost)", text: routeBinding.host)
+                .textFieldStyle(.roundedBorder)
+
+            Text("->")
+                .foregroundStyle(.secondary)
+
+            TextField("Upstream (z. B. 127.0.0.1:3000)", text: routeBinding.upstream)
+                .textFieldStyle(.roundedBorder)
+
+            Button(role: .destructive) {
+                viewModel.removeCustomRoute(id: routeID)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Route entfernen")
         }
     }
 
