@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class DashboardViewModel: ObservableObject {
     private static let runtimePollIntervalNanoseconds: UInt64 = 5_000_000_000
+    private static let draftAutoSaveDebounceNanoseconds: UInt64 = 700_000_000
 
     @Published private(set) var snapshot: DashboardSnapshot?
     @Published private(set) var isLoading = false
@@ -38,6 +39,7 @@ final class DashboardViewModel: ObservableObject {
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
     private var runtimePollingTask: Task<Void, Never>?
+    private var draftAutoSaveTask: Task<Void, Never>?
 
     init(
         dashboardService: DashboardService,
@@ -65,6 +67,7 @@ final class DashboardViewModel: ObservableObject {
 
     deinit {
         runtimePollingTask?.cancel()
+        draftAutoSaveTask?.cancel()
     }
 
     func refreshIfNeeded() {
@@ -207,10 +210,55 @@ final class DashboardViewModel: ObservableObject {
         onDemandApps.removeAll { $0.id == id }
     }
 
-    func saveCustomConfig() {
+    func scheduleDraftAutoSave() {
+        guard hasLoaded else { return }
+        draftAutoSaveTask?.cancel()
+        draftAutoSaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.draftAutoSaveDebounceNanoseconds)
+            guard !Task.isCancelled else { return }
+            await self?.saveRouteAndOnDemandDraftsIfNeeded()
+        }
+    }
+
+    func saveAdditionalCaddyfileConfig() {
         guard !isSavingCustomConfig else { return }
         let existingSettings = customConfigStore.load()
+        let additionalConfig = customAdditionalCaddyfileConfig
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        isSavingCustomConfig = true
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let settings = CustomConfigSettings(
+                    customRoutes: existingSettings.customRoutes,
+                    onDemandApps: existingSettings.onDemandApps,
+                    additionalCaddyfileConfig: additionalConfig
+                )
+                try self.customConfigStore.save(settings)
+                self.customAdditionalCaddyfileConfig = additionalConfig
+                self.customConfigValidationError = nil
+                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
+                    succeeded: true,
+                    message: "Zusätzliche Caddyfile-Config gespeichert. Snapshot wird aktualisiert (Auto-Reload bei gültiger Config).",
+                    performedAt: Date()
+                )
+                self.isSavingCustomConfig = false
+                self.refresh()
+            } catch {
+                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
+                    succeeded: false,
+                    message: "Speichern fehlgeschlagen: \(error.localizedDescription)",
+                    performedAt: Date()
+                )
+                self.isSavingCustomConfig = false
+            }
+        }
+    }
+
+    private func saveRouteAndOnDemandDraftsIfNeeded() async {
+        guard !isSavingCustomConfig else { return }
+        let existingSettings = customConfigStore.load()
         let normalizedRoutes = customRoutes.map { route in
             CustomRouteDraft(
                 id: route.id,
@@ -243,9 +291,13 @@ final class DashboardViewModel: ObservableObject {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
                 succeeded: false,
-                message: validationError,
+                message: "Auto-Save pausiert: \(validationError)",
                 performedAt: Date()
             )
+            return
+        }
+
+        if normalizedRoutes == existingSettings.customRoutes, normalizedOnDemandApps == existingSettings.onDemandApps {
             return
         }
 
@@ -262,35 +314,32 @@ final class DashboardViewModel: ObservableObject {
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
 
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try self.customConfigStore.save(settings)
-                let cleanupResults = await self.onDemandAppsService.deleteRuntimeUnits(for: removedOnDemandApps)
-                let cleanupFailures = cleanupResults.filter { !$0.succeeded }
-                let cleanupSummary: String
-                if removedOnDemandApps.isEmpty {
-                    cleanupSummary = ""
-                } else if cleanupFailures.isEmpty {
-                    cleanupSummary = " Entfernte On-Demand-Container/Pods wurden ebenfalls gelöscht."
-                } else {
-                    cleanupSummary = " Hinweis: \(cleanupFailures.count) Runtime-Unit(s) konnten nicht gelöscht werden."
-                }
-                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
-                    succeeded: true,
-                    message: "Custom routes/config lokal gespeichert. Snapshot wird aktualisiert (Auto-Reload bei gültiger Config).\(cleanupSummary)",
-                    performedAt: Date()
-                )
-                self.isSavingCustomConfig = false
-                self.refresh()
-            } catch {
-                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
-                    succeeded: false,
-                    message: "Speichern fehlgeschlagen: \(error.localizedDescription)",
-                    performedAt: Date()
-                )
-                self.isSavingCustomConfig = false
+        do {
+            try customConfigStore.save(settings)
+            let cleanupResults = await onDemandAppsService.deleteRuntimeUnits(for: removedOnDemandApps)
+            let cleanupFailures = cleanupResults.filter { !$0.succeeded }
+            let cleanupSummary: String
+            if removedOnDemandApps.isEmpty {
+                cleanupSummary = ""
+            } else if cleanupFailures.isEmpty {
+                cleanupSummary = " Entfernte On-Demand-Container/Pods wurden ebenfalls gelöscht."
+            } else {
+                cleanupSummary = " Hinweis: \(cleanupFailures.count) Runtime-Unit(s) konnten nicht gelöscht werden."
             }
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: true,
+                message: "Custom Routes/On-Demand-Änderungen automatisch gespeichert.\(cleanupSummary)",
+                performedAt: Date()
+            )
+            isSavingCustomConfig = false
+            refresh()
+        } catch {
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: "Auto-Save fehlgeschlagen: \(error.localizedDescription)",
+                performedAt: Date()
+            )
+            isSavingCustomConfig = false
         }
     }
 

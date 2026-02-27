@@ -89,6 +89,12 @@ struct ContentView: View {
         .onAppear {
             viewModel.refreshIfNeeded()
         }
+        .onChange(of: viewModel.customRoutes) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: viewModel.onDemandApps) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .onDemandApps {
                 selectedOnDemandAppID = nil
@@ -808,15 +814,15 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("Speichern & Anwenden") {
+            GroupBox("Custom Config speichern") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Speichert lokal unter Application Support. Danach wird ein Refresh ausgelöst; bei gültiger Konfiguration erfolgt der Auto-Reload automatisch.")
+                    Text("Custom Routes und On-Demand Apps werden automatisch gespeichert und direkt angewendet. Dieser Button ist nur für den zusätzlichen Caddyfile-Block.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 10) {
-                        Button("Speichern") {
-                            viewModel.saveCustomConfig()
+                        Button("Custom Config speichern") {
+                            viewModel.saveAdditionalCaddyfileConfig()
                         }
                         .disabled(viewModel.isSavingCustomConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
 
@@ -951,17 +957,9 @@ struct ContentView: View {
                         }
                     }
 
-                    HStack(spacing: 10) {
-                        Button("Änderungen speichern") {
-                            viewModel.saveCustomConfig()
-                        }
-                        .disabled(viewModel.isSavingCustomConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
-
-                        if viewModel.isSavingCustomConfig {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
+                    Text("Änderungen werden automatisch gespeichert und bei gültiger Konfiguration direkt auf Caddy angewendet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     if let validationError = viewModel.customConfigValidationError {
                         Text(validationError)

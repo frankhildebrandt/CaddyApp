@@ -15,7 +15,7 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - In scope: Route model (`host`, `upstream`, `source`, `enabled`).
 - In scope: Caddyfile generation preview with `tls internal` and `reverse_proxy`.
 - In scope: Host-specific site blocks with `tls internal` per configured route.
-- Out of scope: Persisting route changes to disk in this bootstrap.
+- Out of scope: Nothing for route persistence (routes are now auto-saved and applied).
 
 ## Acceptance Criteria
 
@@ -39,6 +39,7 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - Manual `Reload Caddy` now uses a confirmation dialog and restores the previous Caddyfile automatically if pre-reload validation or reload/start fails.
 - If `reload`/`start` needs elevated rights (for example privileged ports), the app retries via the macOS administrator dialog instead of a hidden CLI password prompt.
 - On app startup, the dashboard auto-starts Caddy with the generated config when Caddy is installed but not running.
+- Route and On-Demand draft edits are debounced, auto-saved, and then applied via existing validate/reload automation.
 
 ## Progress Log
 
@@ -49,3 +50,4 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - 2026-02-26: Added manual reload confirmation and rollback-safe config apply flow (backup, validate, restore on failure).
 - 2026-02-27: Removed global `*.localhost` placeholder block so each configured subdomain receives its own TLS certificate (`tls internal`).
 - 2026-02-27: Added automatic `traefik.me` host aliases for active macOS interface IPv4 addresses on every `*.localhost` route.
+- 2026-02-27: Enabled debounced auto-save/apply for route edits so no manual save button is required for host/upstream changes.

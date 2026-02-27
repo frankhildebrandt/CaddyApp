@@ -60,3 +60,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Replaced external Terminal launch with an embedded in-app shell session inside the Shell tab (live stdin/stdout in the app UI).
 - 2026-02-27: Gateway adjusted to keep returning the on-demand status/waiting page while an app is still not reachable during warm-up instead of returning a hard 502 text error.
 - 2026-02-27: Gateway proxy now forces identity encoding upstream and strips forwarded `Content-Encoding` to avoid browser `ERR_CONTENT_DECODING_FAILED` on proxied app responses (e.g. `ephe.localhost`).
+- 2026-02-27: Enabled debounced auto-save/apply for On-Demand app edits; manual save is no longer required for app draft changes.

@@ -17,6 +17,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Caddy starts automatically on app startup (when installed) using the generated config
 - UI toggle shows the current Caddy runtime state and can start/stop Caddy
 - Generated config changes are auto-validated and auto-reloaded when valid
+- Custom Routes and On-Demand app changes are auto-saved and applied (manual save remains only for additional custom Caddyfile text)
 - Caddy can be installed/updated without Homebrew (app-managed binary in `~/Library/Application Support/CaddyApp/bin/caddy`)
 - Local Caddy CA root certificate path detection, auto-generation bootstrap, and trust guidance
 - Root certificate trust action uses the macOS administrator dialog (no terminal password prompt required)
