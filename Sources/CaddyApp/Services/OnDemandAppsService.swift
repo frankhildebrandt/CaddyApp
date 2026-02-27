@@ -988,6 +988,8 @@ actor OnDemandAppsService {
 
         for item in list {
             guard let vmName = item["name"] as? String else { continue }
+            let state = (item["state"] as? String ?? "").lowercased()
+            guard state == "running" else { continue }
             let result = runner.runShell("multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'")
             guard result.isSuccess else { continue }
             let parsed = parseMultipassYAML(result.stdout, vmName: vmName)

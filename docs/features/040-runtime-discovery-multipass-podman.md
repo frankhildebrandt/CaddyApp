@@ -45,6 +45,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - Runtime discovery refresh is implemented as periodic background polling (best effort), not an event-driven runtime watcher.
 - Multipass service gateway routing uses the existing on-demand gateway port (`127.0.0.1:49215`) to ensure VM/systemd warm-up before proxying.
 - YAML import is intentionally minimal and expects a `services:` list with per-item fields like `name/service`, `port`, optional `scheme`, `systemd(_unit)`, and auto flags.
+- YAML import only runs `multipass exec` against VMs that are already in `running` state, so app startup does not implicitly start stopped VMs.
 
 ## caddy-app.yaml Format
 
@@ -106,3 +107,4 @@ services:
 - 2026-02-27: Added Multipass service configuration UI (host/port/scheme/auto-start-stop/systemd), runtime controls, and status monitoring.
 - 2026-02-27: Added wildcard service route generation (`*.<service>.<vm>.mp.localhost`) for YAML/manual Multipass service definitions.
 - 2026-02-27: Added YAML auto-import from VM `/etc/caddy-app.yaml` into persistent app config (YAML-managed entries).
+- 2026-02-27: Prevented startup side-effect where YAML import could wake stopped VMs; importer now skips non-running VMs.
