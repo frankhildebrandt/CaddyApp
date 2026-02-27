@@ -29,6 +29,9 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - On-Demand preset picker supports web repository sources (`repositories.yaml` / `apps/index.yaml`) with update + import flow
 - Feature progress documents in `docs/features/`
 
+Details zum YAML-Aufbau fuer Multipass (`/etc/caddy-app.yaml`):
+- `docs/features/040-runtime-discovery-multipass-podman.md` (Abschnitt `caddy-app.yaml Format`)
+
 ## Run
 
 ```bash

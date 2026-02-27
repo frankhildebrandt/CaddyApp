@@ -46,6 +46,55 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - Multipass service gateway routing uses the existing on-demand gateway port (`127.0.0.1:49215`) to ensure VM/systemd warm-up before proxying.
 - YAML import is intentionally minimal and expects a `services:` list with per-item fields like `name/service`, `port`, optional `scheme`, `systemd(_unit)`, and auto flags.
 
+## caddy-app.yaml Format
+
+Dateipfad auf der VM:
+- `/etc/caddy-app.yaml`
+
+Top-Level:
+- `services` (Pflicht): Liste von Service-Eintraegen
+
+Service-Felder:
+- `name` oder `service` (Pflicht): Service-Name
+- `port` (Pflicht): Ziel-Port in der VM
+- `scheme` (optional): `http` (Default) oder `https`
+- `health_path` (optional): Health-Pfad, Default `/`
+- `systemd`, `systemd_unit` oder `unit` (optional): systemd Unit-Name, z. B. `nginx.service`
+- `enabled` (optional): `true`/`false`, Default `true`
+- `auto_start_vm` (optional): `true`/`false`, Default `true`
+- `auto_stop_vm` (optional): `true`/`false`, Default `true`
+- `auto_start_systemd` (optional): `true`/`false`, Default `true`
+- `auto_stop_systemd` (optional): `true`/`false`, Default `false`
+- `idle_timeout_seconds` (optional): Idle-Timeout in Sekunden, Default `600`
+
+Host- und URL-Regel:
+- Host wird aus VM-Name + Service-Name automatisch erzeugt.
+- Format: `<service>.<vm>.mp.localhost`
+- Zusätzlich wird Wildcard-Routing erzeugt: `*.<service>.<vm>.mp.localhost`
+
+Beispiel:
+
+```yaml
+services:
+  - name: grafana
+    port: 3000
+    scheme: http
+    health_path: /login
+    systemd_unit: grafana-server.service
+    enabled: true
+    auto_start_vm: true
+    auto_stop_vm: true
+    auto_start_systemd: true
+    auto_stop_systemd: false
+    idle_timeout_seconds: 900
+
+  - service: api
+    port: 8443
+    scheme: https
+    health_path: /health
+    enabled: true
+```
+
 ## Progress Log
 
 - 2026-02-26: Added initial shell-based discovery adapters and dashboard list.
