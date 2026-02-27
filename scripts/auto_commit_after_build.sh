@@ -31,7 +31,7 @@ if [ -z "$(git diff --cached --name-only)" ]; then
 fi
 
 CHANGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
-CHANGED_PREVIEW=$(git diff --cached --name-only | head -n 3 | tr '\n' ', ' | sed 's/, $//')
+CHANGED_PREVIEW=$(git diff --cached --name-only | head -n 3 | awk 'BEGIN { ORS="" } { if (NR > 1) printf ", "; printf "%s", $0 }')
 
 if [ "$CHANGED_COUNT" -le 3 ]; then
   COMMIT_MSG="chore: update ${CHANGED_PREVIEW}"

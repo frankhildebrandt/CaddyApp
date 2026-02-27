@@ -52,7 +52,10 @@ if [ -z "$FEATURE_SLUG" ]; then
   FEATURE_SLUG="auto-feature"
 fi
 
-FEATURE_TITLE=$(printf '%s' "$FEATURE_SLUG" | tr '-' ' ')
+FEATURE_TITLE="${CADDYAPP_FEATURE_TITLE:-}"
+if [ -z "$FEATURE_TITLE" ]; then
+  FEATURE_TITLE=$(printf '%s' "$FEATURE_SLUG" | tr '-' ' ')
+fi
 FEATURE_TITLE=$(printf '%s' "$FEATURE_TITLE" | awk '{for (i=1;i<=NF;i++) {$i=toupper(substr($i,1,1)) substr($i,2)}; print}')
 if [ -z "$FEATURE_TITLE" ]; then
   FEATURE_TITLE="Auto Feature"
