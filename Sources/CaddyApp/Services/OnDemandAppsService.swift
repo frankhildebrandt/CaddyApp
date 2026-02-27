@@ -278,10 +278,13 @@ actor OnDemandAppsService {
 
         for (name, value) in incoming.headers {
             let lower = name.lowercased()
-            if ["host", "content-length", "connection", "proxy-connection"].contains(lower) { continue }
+            if ["host", "content-length", "connection", "proxy-connection", "accept-encoding"].contains(lower) { continue }
             request.setValue(value, forHTTPHeaderField: name)
         }
         request.setValue(app.targetHost, forHTTPHeaderField: "Host")
+        // Prevent compressed upstream payloads because URLSession may transparently decode,
+        // which can otherwise leave mismatched Content-Encoding headers for the browser.
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         if incoming.body.isEmpty == false {
             request.setValue(String(incoming.body.count), forHTTPHeaderField: "Content-Length")
         }
@@ -296,7 +299,7 @@ actor OnDemandAppsService {
             for (key, value) in http.allHeaderFields {
                 guard let name = key as? String else { continue }
                 let lower = name.lowercased()
-                if ["transfer-encoding", "connection", "keep-alive", "proxy-connection"].contains(lower) { continue }
+                if ["transfer-encoding", "connection", "keep-alive", "proxy-connection", "content-encoding", "content-length"].contains(lower) { continue }
                 headers.append((name, String(describing: value)))
             }
             headers.append(("Content-Length", String(data.count)))
