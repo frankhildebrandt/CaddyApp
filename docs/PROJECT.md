@@ -20,6 +20,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - `Sources/CaddyApp/Services/`: Caddy, runtime, config, and system integration logic
 - `Sources/CaddyApp/Models/`: domain models and feature catalog
 - `docs/features/`: feature-level planning/progress documents
+- `docs/repository/`: YAML app repository feed (for GitHub Pages)
 - `scripts/`: build helpers and workflow automation scripts
 - `assets/`: app icon and systray graphics
 
@@ -66,6 +67,20 @@ Manual force example:
 ```bash
 CADDYAPP_FEATURE=1 make build
 ```
+
+### 3) YAML Repository Feed (GitHub Pages)
+
+Repository feed files are versioned in:
+- `docs/repository/repositories.yaml`
+- `docs/repository/apps/index.yaml`
+- `docs/repository/apps/*.yaml`
+
+GitHub Actions workflow:
+- `.github/workflows/pages.yml`
+
+Behavior:
+- deploys `docs/` to GitHub Pages on push to `main` when repository feed files change
+- allows manual deployment via `workflow_dispatch`
 
 ## Recommended Branch Naming
 

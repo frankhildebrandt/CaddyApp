@@ -1,0 +1,18 @@
+apiVersion: caddyapp/v1
+kind: OnDemandApp
+metadata:
+  key: kimai
+  name: Kimai
+  summary: Time tracking app with bundled MariaDB pod setup.
+spec:
+  runtime: podman
+  unitKind: pod
+  unitName: caddyapp-kimai
+  host: kimai.localhost
+  targetHost: 127.0.0.1
+  targetPort: 8001
+  idleTimeoutSeconds: 900
+  enabled: true
+  startMode: run_command
+  runArguments: "pod create --name caddyapp-kimai -p 8001:8001 && run -d --pod caddyapp-kimai --name caddyapp-kimai-db -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11 && run -d --pod caddyapp-kimai --name caddyapp-kimai-app -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4' kimai/kimai2:apache"
+  healthPath: /

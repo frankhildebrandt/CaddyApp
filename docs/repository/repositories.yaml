@@ -1,0 +1,13 @@
+apiVersion: caddyapp/v1
+kind: RepositoryIndex
+metadata:
+  name: CaddyApp Repositories
+  publishedAt: 2026-02-27
+spec:
+  repositories:
+    - id: caddyapp-gh-pages
+      name: CaddyApp GitHub Pages
+      baseUrl: https://frankhildebrandt.github.io/CaddyApp/repository
+      indexUrl: https://frankhildebrandt.github.io/CaddyApp/repository/apps/index.yaml
+      sourceUrl: https://github.com/frankhildebrandt/CaddyApp
+      enabled: true

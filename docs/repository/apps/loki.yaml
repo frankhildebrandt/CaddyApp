@@ -1,0 +1,18 @@
+apiVersion: caddyapp/v1
+kind: OnDemandApp
+metadata:
+  key: loki
+  name: Loki
+  summary: Log aggregation backend (Grafana Loki) on port 3100.
+spec:
+  runtime: podman
+  unitKind: container
+  unitName: caddyapp-loki
+  host: loki.localhost
+  targetHost: 127.0.0.1
+  targetPort: 3100
+  idleTimeoutSeconds: 600
+  enabled: true
+  startMode: run_command
+  runArguments: run -d --name caddyapp-loki -p 3100:3100 grafana/loki:latest
+  healthPath: /ready

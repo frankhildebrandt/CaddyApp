@@ -1,0 +1,15 @@
+apiVersion: caddyapp/v1
+kind: AppIndex
+metadata:
+  name: CaddyApp Presets
+  publishedAt: 2026-02-27
+spec:
+  apps:
+    - key: loki
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/loki.yaml
+    - key: grafana
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/grafana.yaml
+    - key: kimai
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/kimai.yaml
+    - key: ephe
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/ephe.yaml

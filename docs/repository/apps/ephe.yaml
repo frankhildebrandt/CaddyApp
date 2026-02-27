@@ -1,0 +1,18 @@
+apiVersion: caddyapp/v1
+kind: OnDemandApp
+metadata:
+  key: ephe
+  name: Ephe
+  summary: Builds and serves Ephe from source in a Node container on port 3000.
+spec:
+  runtime: podman
+  unitKind: container
+  unitName: caddyapp-ephe
+  host: ephe.localhost
+  targetHost: 127.0.0.1
+  targetPort: 3000
+  idleTimeoutSeconds: 900
+  enabled: true
+  startMode: run_command
+  runArguments: "run -d --name caddyapp-ephe -p 3000:3000 node:22-alpine sh -lc \"apk add --no-cache git && npm i -g pnpm && if [ ! -d /opt/ephe ]; then git clone --depth=1 https://github.com/unvalley/ephe.git /opt/ephe; fi && cd /opt/ephe && pnpm install && pnpm run build && pnpm exec vite preview --host 0.0.0.0 --port 3000 --strictPort\""
+  healthPath: /

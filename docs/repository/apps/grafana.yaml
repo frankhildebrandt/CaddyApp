@@ -1,0 +1,18 @@
+apiVersion: caddyapp/v1
+kind: OnDemandApp
+metadata:
+  key: grafana
+  name: Grafana
+  summary: Grafana OSS dashboard UI on port 3000.
+spec:
+  runtime: podman
+  unitKind: container
+  unitName: caddyapp-grafana
+  host: grafana.localhost
+  targetHost: 127.0.0.1
+  targetPort: 3000
+  idleTimeoutSeconds: 900
+  enabled: true
+  startMode: run_command
+  runArguments: run -d --name caddyapp-grafana -p 3000:3000 grafana/grafana-oss:latest
+  healthPath: /login

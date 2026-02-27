@@ -23,6 +23,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Root certificate trust action uses the macOS administrator dialog (no terminal password prompt required)
 - Multipass / Podman discovery stubs (best effort)
 - Automatic Multipass route: `{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
+- YAML-based app repository feed under `docs/repository/` (GitHub Pages ready)
 - Feature progress documents in `docs/features/`
 
 ## Run
@@ -46,6 +47,7 @@ make check
 
 - Projekt-Dokumentation: `docs/PROJECT.md`
 - Feature-Dokumente: `docs/features/`
+- YAML Repository Feed: `docs/repository/`
 - Agent-Regeln: `AGENTS.md`
 
 ## Automatisierung
@@ -58,6 +60,14 @@ make check
 Bei Feature-Branches (`feat/...`, `feature/...`) wird vor dem Auto-Commit automatisch ein Feature-Dokument unter `docs/features/` angelegt, falls noch keines geaendert wurde.
 
 - Force-Flag: `CADDYAPP_FEATURE=1 make build`
+
+## YAML Repository Feed
+
+Die initialen Preset-Apps liegen als YAML-Dateien fuer Web-Repositories vor:
+
+- `docs/repository/repositories.yaml` (Repository-Index)
+- `docs/repository/apps/index.yaml` (App-Index)
+- `docs/repository/apps/*.yaml` (einzelne App-Definitionen)
 
 ## Next engineering steps
 

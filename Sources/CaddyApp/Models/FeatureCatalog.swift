@@ -57,6 +57,13 @@ enum FeatureCatalog {
             status: .done,
             summary: "Define Docker/Podman apps that auto-start on URL access and stop after inactivity.",
             documentPath: "docs/features/080-on-demand-container-apps.md"
+        ),
+        FeatureItem(
+            id: "F-090",
+            title: "YAML App Repositories",
+            status: .inProgress,
+            summary: "Define and distribute custom app presets via web-updatable YAML repositories.",
+            documentPath: "docs/features/090-yaml-app-repositories.md"
         )
     ]
 }
