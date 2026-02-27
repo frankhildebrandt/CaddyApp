@@ -15,6 +15,10 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - In scope: Query `multipass list --format json`.
 - In scope: Query `podman ps --format json`.
 - In scope: Normalize discovered targets into a shared runtime model.
+- In scope: Multipass service configuration for host/port/scheme with generated `*.<service>.<vm>.mp.localhost` routes.
+- In scope: Multipass VM auto-start/auto-stop behavior on gateway access (on-demand style).
+- In scope: systemd unit monitoring and controls (`start`/`restart`/`stop`) per Multipass service.
+- In scope: YAML auto-config import from VM file `/etc/caddy-app.yaml`.
 - Out of scope: Editable route approval workflow.
 
 ## Acceptance Criteria
@@ -25,6 +29,11 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - [x] App lists discovered Multipass and Podman runtime targets in the shared runtime model.
 - [x] Multipass target address inference probes common HTTP/HTTPS ports during bootstrap discovery.
 - [x] App periodically refreshes runtime discovery in the background and auto-reloads Caddy when the generated config changes and validates successfully.
+- [x] App supports per-service Multipass routing config (host/port/scheme/health/systemd/auto-start-stop) persisted in custom config.
+- [x] App generates service routes with wildcard host support (`*.<service>.<vm>.mp.localhost`) via the on-demand gateway.
+- [x] App can auto-start stopped Multipass VMs and optionally auto-start configured systemd units before proxying.
+- [x] App can auto-stop Multipass VMs after idle timeout (optional, per service) and optionally stop systemd units.
+- [x] App imports service definitions from `/etc/caddy-app.yaml` on Multipass VMs and marks them as YAML-managed.
 
 ## Implementation Notes
 
@@ -34,6 +43,57 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - Multipass VM names are sanitized into DNS labels before generating `{vm}.mp.localhost`.
 - Editable approval flow for proposed routes remains future work and is tracked outside this bootstrap feature.
 - Runtime discovery refresh is implemented as periodic background polling (best effort), not an event-driven runtime watcher.
+- Multipass service gateway routing uses the existing on-demand gateway port (`127.0.0.1:49215`) to ensure VM/systemd warm-up before proxying.
+- YAML import is intentionally minimal and expects a `services:` list with per-item fields like `name/service`, `port`, optional `scheme`, `systemd(_unit)`, and auto flags.
+
+## caddy-app.yaml Format
+
+Dateipfad auf der VM:
+- `/etc/caddy-app.yaml`
+
+Top-Level:
+- `services` (Pflicht): Liste von Service-Eintraegen
+
+Service-Felder:
+- `name` oder `service` (Pflicht): Service-Name
+- `port` (Pflicht): Ziel-Port in der VM
+- `scheme` (optional): `http` (Default) oder `https`
+- `health_path` (optional): Health-Pfad, Default `/`
+- `systemd`, `systemd_unit` oder `unit` (optional): systemd Unit-Name, z. B. `nginx.service`
+- `enabled` (optional): `true`/`false`, Default `true`
+- `auto_start_vm` (optional): `true`/`false`, Default `true`
+- `auto_stop_vm` (optional): `true`/`false`, Default `true`
+- `auto_start_systemd` (optional): `true`/`false`, Default `true`
+- `auto_stop_systemd` (optional): `true`/`false`, Default `false`
+- `idle_timeout_seconds` (optional): Idle-Timeout in Sekunden, Default `600`
+
+Host- und URL-Regel:
+- Host wird aus VM-Name + Service-Name automatisch erzeugt.
+- Format: `<service>.<vm>.mp.localhost`
+- Zusätzlich wird Wildcard-Routing erzeugt: `*.<service>.<vm>.mp.localhost`
+
+Beispiel:
+
+```yaml
+services:
+  - name: grafana
+    port: 3000
+    scheme: http
+    health_path: /login
+    systemd_unit: grafana-server.service
+    enabled: true
+    auto_start_vm: true
+    auto_stop_vm: true
+    auto_start_systemd: true
+    auto_stop_systemd: false
+    idle_timeout_seconds: 900
+
+  - service: api
+    port: 8443
+    scheme: https
+    health_path: /health
+    enabled: true
+```
 
 ## Progress Log
 
@@ -43,3 +103,6 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - 2026-02-26: Marked bootstrap runtime discovery scope complete (`F-040` Done).
 - 2026-02-26: Added background runtime polling (Multipass/Podman) and automatic Caddy reload when generated config changes.
 - 2026-02-27: Removed automatic Multipass wildcard route generation to keep TLS issuance host-specific per subdomain.
+- 2026-02-27: Added Multipass service configuration UI (host/port/scheme/auto-start-stop/systemd), runtime controls, and status monitoring.
+- 2026-02-27: Added wildcard service route generation (`*.<service>.<vm>.mp.localhost`) for YAML/manual Multipass service definitions.
+- 2026-02-27: Added YAML auto-import from VM `/etc/caddy-app.yaml` into persistent app config (YAML-managed entries).

@@ -27,6 +27,7 @@ struct CustomConfigStore {
         CustomConfigSettings(
             customRoutes: settings.customRoutes,
             onDemandApps: settings.onDemandApps,
+            multipassServices: settings.multipassServices,
             appRepositories: settings.appRepositories,
             additionalCaddyfileConfig: settings.additionalCaddyfileConfig
         )

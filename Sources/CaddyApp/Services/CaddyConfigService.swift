@@ -5,10 +5,12 @@ struct CaddyConfigService {
     func routes(
         runtimeTargets: [RuntimeTarget],
         customRoutes: [CustomRouteDraft],
-        onDemandApps: [OnDemandAppDraft]
+        onDemandApps: [OnDemandAppDraft],
+        multipassServices: [MultipassServiceDraft]
     ) -> [ProxyRoute] {
         customRoutes.map { $0.asProxyRoute() }
             + onDemandApps.map { $0.asProxyRoute(gatewayPort: OnDemandAppsService.gatewayPort) }
+            + multipassServiceRoutes(from: multipassServices)
             + multipassRoutes(from: runtimeTargets)
     }
 
@@ -66,6 +68,19 @@ struct CaddyConfigService {
                     )
                 ]
             }
+    }
+
+    private func multipassServiceRoutes(from services: [MultipassServiceDraft]) -> [ProxyRoute] {
+        services.flatMap { service in
+            let direct = service.asProxyRoute(gatewayPort: OnDemandAppsService.gatewayPort)
+            let wildcard = ProxyRoute(
+                host: "*.\(service.host)",
+                upstream: direct.upstream,
+                source: .multipassService,
+                enabled: direct.enabled
+            )
+            return [direct, wildcard]
+        }
     }
 
     private func dnsLabel(from input: String) -> String? {

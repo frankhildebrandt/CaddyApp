@@ -95,6 +95,9 @@ struct ContentView: View {
         .onChange(of: viewModel.onDemandApps) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
+        .onChange(of: viewModel.multipassServices) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
         .onChange(of: viewModel.appRepositories) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
@@ -710,38 +713,144 @@ struct ContentView: View {
     }
 
     private func runtimeSection(_ snapshot: DashboardSnapshot) -> some View {
-        GroupBox("Runtime Discovery (Multipass / Podman)") {
-            VStack(alignment: .leading, spacing: 8) {
-                if snapshot.runtimeTargets.isEmpty {
-                    Text("No runtime targets detected")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(snapshot.runtimeTargets) { target in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text(target.name)
-                                        .font(.headline)
-                                    Text(target.source.label)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Runtime Discovery (Multipass / Podman)") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if snapshot.runtimeTargets.isEmpty {
+                        Text("No runtime targets detected")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(snapshot.runtimeTargets) { target in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text(target.name)
+                                            .font(.headline)
+                                        Text(target.source.label)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if target.source == .multipass, let host = multipassAutoHost(for: target.name) {
+                                        Text("Auto route: \(host)")
+                                            .font(.caption.monospaced())
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
-                                if target.source == .multipass, let host = multipassAutoHost(for: target.name) {
-                                    Text("Auto route: \(host)")
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(.secondary)
-                                }
+                                Spacer()
+                                Text(target.address)
+                                    .font(.system(.body, design: .monospaced))
+                                Text(target.status)
+                                    .foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Text(target.address)
-                                .font(.system(.body, design: .monospaced))
-                            Text(target.status)
-                                .foregroundStyle(.secondary)
                         }
                     }
                 }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
+
+            GroupBox("Multipass Services (.YAML + Controls)") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if viewModel.multipassServices.isEmpty {
+                        Text("Keine Multipass Services konfiguriert. YAML-Import läuft über /etc/caddy-app.yaml in den VMs.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.multipassServiceStatuses.map { ($0.id, $0) })
+                        ForEach($viewModel.multipassServices) { $service in
+                            let runtimeStatus = statusesByID[service.id]
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Toggle("", isOn: $service.enabled)
+                                        .labelsHidden()
+                                        .toggleStyle(.checkbox)
+                                    TextField("VM", text: $service.vmName)
+                                        .textFieldStyle(.roundedBorder)
+                                    TextField("Service", text: $service.serviceName)
+                                        .textFieldStyle(.roundedBorder)
+                                    TextField("Host", text: $service.host)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                                HStack {
+                                    TextField("Port", value: $service.targetPort, formatter: integerFormatter)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 90)
+                                    Picker("Scheme", selection: $service.scheme) {
+                                        Text("http").tag(MultipassServiceScheme.http)
+                                        Text("https").tag(MultipassServiceScheme.https)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .frame(width: 150)
+                                    Toggle("AutoStart VM", isOn: $service.autoStartVM)
+                                        .toggleStyle(.checkbox)
+                                    Toggle("AutoStop VM", isOn: $service.autoStopVM)
+                                        .toggleStyle(.checkbox)
+                                    TextField("Idle s", value: $service.idleTimeoutSeconds, formatter: integerFormatter)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 90)
+                                }
+                                HStack {
+                                    TextField("systemd unit (optional)", text: $service.systemdUnit)
+                                        .textFieldStyle(.roundedBorder)
+                                    Toggle("AutoStart systemd", isOn: $service.autoStartSystemd)
+                                        .toggleStyle(.checkbox)
+                                    Toggle("AutoStop systemd", isOn: $service.autoStopSystemd)
+                                        .toggleStyle(.checkbox)
+                                }
+                                HStack {
+                                    if let runtimeStatus {
+                                        Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button("Start") {
+                                        viewModel.controlMultipassService(serviceID: service.id, action: .start)
+                                    }
+                                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                                    Button("Stop") {
+                                        viewModel.controlMultipassService(serviceID: service.id, action: .stop)
+                                    }
+                                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                                    if !service.systemdUnit.isEmpty {
+                                        Button("Start systemd") {
+                                            viewModel.controlMultipassService(serviceID: service.id, action: .startSystemd)
+                                        }
+                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
+                                        Button("Restart systemd") {
+                                            viewModel.controlMultipassService(serviceID: service.id, action: .restartSystemd)
+                                        }
+                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
+                                        Button("Stop systemd") {
+                                            viewModel.controlMultipassService(serviceID: service.id, action: .stopSystemd)
+                                        }
+                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
+                                    }
+                                    Button(role: .destructive) {
+                                        viewModel.removeMultipassService(id: service.id)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                                Divider()
+                            }
+                        }
+                    }
+
+                    HStack {
+                        Button("Multipass Service hinzufügen") {
+                            viewModel.addMultipassService()
+                        }
+                        Spacer()
+                        if let result = viewModel.lastMultipassServiceControlResult {
+                            Text(result.message)
+                                .font(.caption)
+                                .foregroundStyle(result.succeeded ? .green : .red)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
     }
 
@@ -1703,6 +1812,12 @@ struct ContentView: View {
         }
     }
 
+    private var integerFormatter: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        return formatter
+    }
+
     private func onDemandPhaseColor(_ phase: OnDemandAppPhase) -> Color {
         switch phase {
         case .running:
@@ -1764,6 +1879,8 @@ struct ContentView: View {
         case .manual:
             return nil
         case .onDemand:
+            return nil
+        case .multipassService:
             return nil
         }
     }

@@ -27,7 +27,7 @@ enum FeatureCatalog {
             id: "F-040",
             title: "Multipass & Podman Runtime Discovery",
             status: .done,
-            summary: "Discover local Multipass/Podman runtimes and derive bootstrap targets for proxy routing.",
+            summary: "Discover local Multipass/Podman runtimes and manage Multipass service routes, auto-start/stop, and systemd controls.",
             documentPath: "docs/features/040-runtime-discovery-multipass-podman.md"
         ),
         FeatureItem(

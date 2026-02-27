@@ -18,6 +18,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var lastCaddyUpdateOperation: CaddyUpdateOperationResult?
     @Published var customRoutes: [CustomRouteDraft]
     @Published var onDemandApps: [OnDemandAppDraft]
+    @Published var multipassServices: [MultipassServiceDraft]
     @Published var appRepositories: [AppRepositoryDraft]
     @Published var customAdditionalCaddyfileConfig: String
     @Published private(set) var isSavingCustomConfig = false
@@ -28,6 +29,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var logFilterQuery: String = ""
     @Published private(set) var isChangingOnDemandAppRuntime = false
     @Published private(set) var lastOnDemandAppControlResult: OnDemandAppControlResult?
+    @Published private(set) var isChangingMultipassServiceRuntime = false
+    @Published private(set) var lastMultipassServiceControlResult: OnDemandAppControlResult?
     @Published private(set) var remoteOnDemandPresets: [OnDemandAppPreset] = []
     @Published private(set) var isRefreshingAppRepositories = false
     @Published private(set) var lastRepositorySyncResult: AppRepositorySyncResult?
@@ -66,6 +69,7 @@ final class DashboardViewModel: ObservableObject {
         self.appRepositoryService = appRepositoryService
         self.customRoutes = initialCustomConfig.customRoutes
         self.onDemandApps = initialCustomConfig.onDemandApps
+        self.multipassServices = initialCustomConfig.multipassServices
         self.appRepositories = initialCustomConfig.appRepositories
         self.customAdditionalCaddyfileConfig = initialCustomConfig.additionalCaddyfileConfig
     }
@@ -222,6 +226,21 @@ final class DashboardViewModel: ObservableObject {
         onDemandApps.removeAll { $0.id == id }
     }
 
+    func addMultipassService() {
+        multipassServices.append(
+            MultipassServiceDraft(
+                vmName: "",
+                serviceName: "",
+                host: "",
+                targetPort: 8080
+            )
+        )
+    }
+
+    func removeMultipassService(id: MultipassServiceDraft.ID) {
+        multipassServices.removeAll { $0.id == id }
+    }
+
     func addAppRepository() {
         appRepositories.append(
             AppRepositoryDraft(
@@ -282,6 +301,7 @@ final class DashboardViewModel: ObservableObject {
                 let settings = CustomConfigSettings(
                     customRoutes: existingSettings.customRoutes,
                     onDemandApps: existingSettings.onDemandApps,
+                    multipassServices: existingSettings.multipassServices,
                     appRepositories: appRepositories,
                     additionalCaddyfileConfig: additionalConfig
                 )
@@ -330,6 +350,15 @@ final class DashboardViewModel: ObservableObject {
             normalized.healthPath = app.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
             return normalized
         }
+        let normalizedMultipassServices = multipassServices.map { service in
+            var normalized = service
+            normalized.vmName = service.vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.serviceName = service.serviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.host = service.host.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.healthPath = service.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.systemdUnit = service.systemdUnit.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized
+        }
         let normalizedRepositories = appRepositories.map { repository in
             var normalized = repository
             normalized.name = repository.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -355,6 +384,18 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
+        if let validationError = validateMultipassServices(
+            normalizedMultipassServices,
+            existingHosts: normalizedRoutes.map(\.host) + normalizedOnDemandApps.map(\.host)
+        ) {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: "Auto-Save pausiert: \(validationError)",
+                performedAt: Date()
+            )
+            return
+        }
         if let validationError = validateAppRepositories(normalizedRepositories) {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
@@ -367,6 +408,7 @@ final class DashboardViewModel: ObservableObject {
 
         if normalizedRoutes == existingSettings.customRoutes,
            normalizedOnDemandApps == existingSettings.onDemandApps,
+           normalizedMultipassServices == existingSettings.multipassServices,
            normalizedRepositories == existingSettings.appRepositories
         {
             return
@@ -374,6 +416,7 @@ final class DashboardViewModel: ObservableObject {
 
         customRoutes = normalizedRoutes
         onDemandApps = normalizedOnDemandApps
+        multipassServices = normalizedMultipassServices
         appRepositories = normalizedRepositories
         customConfigValidationError = nil
         isSavingCustomConfig = true
@@ -383,6 +426,7 @@ final class DashboardViewModel: ObservableObject {
         let settings = CustomConfigSettings(
             customRoutes: normalizedRoutes,
             onDemandApps: normalizedOnDemandApps,
+            multipassServices: normalizedMultipassServices,
             appRepositories: normalizedRepositories,
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
@@ -450,6 +494,22 @@ final class DashboardViewModel: ObservableObject {
                 : await self.onDemandAppsService.stopApp(id: appID)
             self.lastOnDemandAppControlResult = result
             self.isChangingOnDemandAppRuntime = false
+            let updatedSnapshot = await self.dashboardService.loadSnapshot()
+            self.snapshot = updatedSnapshot
+            self.hasLoaded = true
+            self.startRuntimePollingIfNeeded()
+            self.refreshLogs()
+        }
+    }
+
+    func controlMultipassService(serviceID: UUID, action: MultipassServiceControlAction) {
+        guard !isChangingMultipassServiceRuntime else { return }
+        isChangingMultipassServiceRuntime = true
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await self.onDemandAppsService.controlMultipassService(id: serviceID, action: action)
+            self.lastMultipassServiceControlResult = result
+            self.isChangingMultipassServiceRuntime = false
             let updatedSnapshot = await self.dashboardService.loadSnapshot()
             self.snapshot = updatedSnapshot
             self.hasLoaded = true
@@ -843,6 +903,32 @@ final class DashboardViewModel: ObservableObject {
             .sorted()
         if let duplicateURL = duplicateURLs.first {
             return "Doppelte Repository-URL: \(duplicateURL)"
+        }
+
+        return nil
+    }
+
+    private func validateMultipassServices(_ services: [MultipassServiceDraft], existingHosts: [String]) -> String? {
+        let occupiedHosts = Set(existingHosts.map { $0.lowercased() })
+        for (index, service) in services.enumerated() {
+            let row = index + 1
+            if service.vmName.isEmpty { return "Multipass Service \(row): VM Name darf nicht leer sein." }
+            if service.serviceName.isEmpty { return "Multipass Service \(row): Service Name darf nicht leer sein." }
+            if service.host.isEmpty { return "Multipass Service \(row): Host darf nicht leer sein." }
+            if service.targetPort <= 0 || service.targetPort > 65535 { return "Multipass Service \(row): Port ist ungültig." }
+            if service.idleTimeoutSeconds < 15 { return "Multipass Service \(row): Idle Timeout muss mindestens 15 Sekunden sein." }
+            if service.host.contains(where: \.isWhitespace) { return "Multipass Service \(row): Host darf keine Leerzeichen enthalten." }
+            if occupiedHosts.contains(service.host.lowercased()) {
+                return "Multipass Service \(row): Host kollidiert mit bestehender Route: \(service.host)"
+            }
+        }
+
+        let duplicates = Dictionary(grouping: services.map { $0.host.lowercased() }) { $0 }
+            .filter { !$0.key.isEmpty && $0.value.count > 1 }
+            .map(\.key)
+            .sorted()
+        if let duplicate = duplicates.first {
+            return "Doppelter Host in Multipass Services: \(duplicate)"
         }
 
         return nil

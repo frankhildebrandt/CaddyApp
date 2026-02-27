@@ -58,6 +58,7 @@ struct CustomRouteDraft: Identifiable, Hashable, Codable {
 struct CustomConfigSettings: Codable {
     var customRoutes: [CustomRouteDraft]
     var onDemandApps: [OnDemandAppDraft]
+    var multipassServices: [MultipassServiceDraft]
     var appRepositories: [AppRepositoryDraft]
     var additionalCaddyfileConfig: String
 
@@ -67,6 +68,7 @@ struct CustomConfigSettings: Codable {
             CustomRouteDraft(host: "api.localhost", upstream: "127.0.0.1:8080", enabled: true)
         ],
         onDemandApps: [],
+        multipassServices: [],
         appRepositories: AppRepositoryDraft.defaultList,
         additionalCaddyfileConfig: ""
     )
@@ -74,6 +76,7 @@ struct CustomConfigSettings: Codable {
     enum CodingKeys: String, CodingKey {
         case customRoutes
         case onDemandApps
+        case multipassServices
         case appRepositories
         case additionalCaddyfileConfig
     }
@@ -81,11 +84,13 @@ struct CustomConfigSettings: Codable {
     init(
         customRoutes: [CustomRouteDraft],
         onDemandApps: [OnDemandAppDraft],
+        multipassServices: [MultipassServiceDraft],
         appRepositories: [AppRepositoryDraft],
         additionalCaddyfileConfig: String
     ) {
         self.customRoutes = customRoutes
         self.onDemandApps = onDemandApps
+        self.multipassServices = multipassServices
         self.appRepositories = appRepositories
         self.additionalCaddyfileConfig = additionalCaddyfileConfig
     }
@@ -96,6 +101,8 @@ struct CustomConfigSettings: Codable {
             ?? Self.default.customRoutes
         onDemandApps = try container.decodeIfPresent([OnDemandAppDraft].self, forKey: .onDemandApps)
             ?? Self.default.onDemandApps
+        multipassServices = try container.decodeIfPresent([MultipassServiceDraft].self, forKey: .multipassServices)
+            ?? Self.default.multipassServices
         appRepositories = try container.decodeIfPresent([AppRepositoryDraft].self, forKey: .appRepositories)
             ?? AppRepositoryDraft.defaultList
         additionalCaddyfileConfig = try container.decodeIfPresent(String.self, forKey: .additionalCaddyfileConfig)
@@ -129,15 +136,84 @@ enum RuntimeSource: String, CaseIterable {
     case manual
     case onDemand = "on_demand"
     case multipass
+    case multipassService = "multipass_service"
     case podman
 
     var label: String {
         switch self {
         case .onDemand:
             return "On-Demand"
+        case .multipassService:
+            return "Multipass Service"
         default:
             return rawValue.capitalized
         }
+    }
+}
+
+enum MultipassServiceScheme: String, Codable, CaseIterable, Hashable {
+    case http
+    case https
+}
+
+struct MultipassServiceDraft: Identifiable, Hashable, Codable {
+    var id: UUID
+    var vmName: String
+    var serviceName: String
+    var host: String
+    var targetPort: Int
+    var scheme: MultipassServiceScheme
+    var healthPath: String
+    var enabled: Bool
+    var autoStartVM: Bool
+    var autoStopVM: Bool
+    var autoStartSystemd: Bool
+    var autoStopSystemd: Bool
+    var idleTimeoutSeconds: Int
+    var systemdUnit: String
+    var managedByYAML: Bool
+
+    init(
+        id: UUID = UUID(),
+        vmName: String,
+        serviceName: String,
+        host: String,
+        targetPort: Int,
+        scheme: MultipassServiceScheme = .http,
+        healthPath: String = "/",
+        enabled: Bool = true,
+        autoStartVM: Bool = true,
+        autoStopVM: Bool = true,
+        autoStartSystemd: Bool = true,
+        autoStopSystemd: Bool = false,
+        idleTimeoutSeconds: Int = 600,
+        systemdUnit: String = "",
+        managedByYAML: Bool = false
+    ) {
+        self.id = id
+        self.vmName = vmName
+        self.serviceName = serviceName
+        self.host = host
+        self.targetPort = targetPort
+        self.scheme = scheme
+        self.healthPath = healthPath
+        self.enabled = enabled
+        self.autoStartVM = autoStartVM
+        self.autoStopVM = autoStopVM
+        self.autoStartSystemd = autoStartSystemd
+        self.autoStopSystemd = autoStopSystemd
+        self.idleTimeoutSeconds = idleTimeoutSeconds
+        self.systemdUnit = systemdUnit
+        self.managedByYAML = managedByYAML
+    }
+
+    func asProxyRoute(gatewayPort: UInt16) -> ProxyRoute {
+        ProxyRoute(
+            host: host,
+            upstream: "127.0.0.1:\(gatewayPort)",
+            source: .multipassService,
+            enabled: enabled
+        )
     }
 }
 
@@ -307,6 +383,34 @@ struct OnDemandAppControlResult {
     var succeeded: Bool
     var message: String
     var performedAt: Date
+}
+
+struct MultipassServiceRuntimeStatus: Identifiable, Hashable {
+    var id: UUID
+    var vmName: String
+    var serviceName: String
+    var host: String
+    var targetPort: Int
+    var scheme: MultipassServiceScheme
+    var enabled: Bool
+    var autoStartVM: Bool
+    var autoStopVM: Bool
+    var idleTimeoutSeconds: Int
+    var systemdUnit: String
+    var phase: OnDemandAppPhase
+    var vmStatus: String
+    var systemdStatus: String
+    var lastAccessAt: Date?
+    var lastActionAt: Date?
+    var lastError: String?
+}
+
+enum MultipassServiceControlAction {
+    case start
+    case stop
+    case startSystemd
+    case restartSystemd
+    case stopSystemd
 }
 
 struct OnDemandAppPreset: Identifiable, Hashable {
@@ -576,6 +680,7 @@ struct DashboardSnapshot {
     var configPreview: CaddyConfigPreview
     var runtimeTargets: [RuntimeTarget]
     var onDemandAppStatuses: [OnDemandAppRuntimeStatus]
+    var multipassServiceStatuses: [MultipassServiceRuntimeStatus]
     var routes: [ProxyRoute]
     var warnings: [String]
     var autoSetupReport: AutoSetupReport
