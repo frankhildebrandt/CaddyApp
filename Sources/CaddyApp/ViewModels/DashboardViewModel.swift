@@ -538,6 +538,30 @@ final class DashboardViewModel: ObservableObject {
                 lastConfigOperation = startResult
                 await reloadSnapshotAfterConfigMutation()
                 runDeferredRefreshIfNeeded()
+            } else if configFileDiffersFromPreview(currentSnapshot.configPreview) {
+                let validateResult = configLifecycleService.validate(preview: currentSnapshot.configPreview)
+                if !validateResult.succeeded {
+                    lastConfigOperation = ConfigOperationResult(
+                        kind: .autoApply,
+                        succeeded: false,
+                        message: "Auto-reload skipped on startup: generated config is invalid",
+                        output: validateResult.output.isEmpty ? validateResult.message : validateResult.output,
+                        performedAt: Date()
+                    )
+                    return
+                }
+
+                let reloadResult = configLifecycleService.reload(preview: currentSnapshot.configPreview)
+                lastConfigOperation = ConfigOperationResult(
+                    kind: .autoApply,
+                    succeeded: reloadResult.succeeded,
+                    message: reloadResult.succeeded
+                        ? "Auto-reloaded Caddy on startup to apply generated config"
+                        : "Auto-reload on startup failed",
+                    output: reloadResult.output,
+                    performedAt: Date()
+                )
+                await reloadSnapshotAfterConfigMutation()
             }
             return
         }
@@ -582,6 +606,14 @@ final class DashboardViewModel: ObservableObject {
         guard refreshPendingAfterRuntimeChange else { return }
         refreshPendingAfterRuntimeChange = false
         refresh()
+    }
+
+    private func configFileDiffersFromPreview(_ preview: CaddyConfigPreview) -> Bool {
+        let fileURL = URL(fileURLWithPath: preview.caddyfilePath)
+        guard let existing = try? String(contentsOf: fileURL, encoding: .utf8) else { return true }
+        let normalizedExisting = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPreview = preview.generatedCaddyfile.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedExisting != normalizedPreview
     }
 
     private func filterLogLines(_ raw: String, containsAny needles: [String]) -> String {

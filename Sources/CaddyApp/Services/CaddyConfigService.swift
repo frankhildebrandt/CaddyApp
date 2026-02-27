@@ -27,7 +27,6 @@ struct CaddyConfigService {
         var lines: [String] = []
         lines.append("{")
         lines.append("    admin localhost:2019")
-        lines.append("    auto_tls")
         lines.append("}")
         lines.append("")
 

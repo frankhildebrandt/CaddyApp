@@ -38,4 +38,4 @@ Make Caddy's local CA trust flow understandable and simple so `tls internal` wor
 - 2026-02-26: Added automatic local CA generation bootstrap using a temporary `tls internal` Caddy site.
 - 2026-02-26: Added `caddy trust` action using macOS authorization dialog with UI status output.
 - 2026-02-26: Added System Keychain trust verification by matching the local root certificate SHA-256 fingerprint against `security find-certificate -Z` output.
-- 2026-02-27: Added `auto_tls` to the generated Caddy global options block.
+- 2026-02-27: Startup now auto-reloads a running Caddy instance when the generated config differs from the on-disk Caddyfile, ensuring stale wildcard localhost configs are replaced.
