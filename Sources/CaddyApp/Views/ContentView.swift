@@ -89,6 +89,11 @@ struct ContentView: View {
         .onAppear {
             viewModel.refreshIfNeeded()
         }
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab == .onDemandApps {
+                selectedOnDemandAppID = nil
+            }
+        }
         .background(MainWindowDelegateInstaller())
         .sheet(isPresented: $showOnDemandPresetPicker) {
             onDemandPresetPickerSheet
@@ -859,10 +864,18 @@ struct ContentView: View {
             GroupBox("On-Demand Apps") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .center, spacing: 10) {
-                        Text("Übersicht links, Details rechts: Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout.")
+                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
+                        if selectedOnDemandAppID != nil {
+                            Button {
+                                selectedOnDemandAppID = nil
+                            } label: {
+                                Label("Zurück zur Liste", systemImage: "chevron.left")
+                            }
+                            .buttonStyle(.bordered)
+                        }
                         Button {
                             showOnDemandPresetPicker = true
                         } label: {
@@ -875,12 +888,28 @@ struct ContentView: View {
                         Text("Noch keine On-Demand-App angelegt.")
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 8)
+                    } else if let selectedID = selectedOnDemandAppID,
+                              let appBinding = bindingForOnDemandApp(id: selectedID)
+                    {
+                        let app = appBinding.wrappedValue
+                        let runtimeStatus = statusesByID[selectedID]
+                        onDemandAppDetail(
+                            app: appBinding,
+                            runtimeStatus: runtimeStatus
+                        )
+                        .onAppear {
+                            loadOnDemandSubTab(tab: selectedOnDemandSubTab, app: app)
+                        }
                     } else {
-                        HStack(alignment: .top, spacing: 12) {
-                            List(selection: $selectedOnDemandAppID) {
-                                ForEach(viewModel.onDemandApps) { app in
-                                    let runtimeStatus = statusesByID[app.id]
-                                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(viewModel.onDemandApps) { app in
+                                let runtimeStatus = statusesByID[app.id]
+                                Button {
+                                    selectedOnDemandAppID = app.id
+                                    selectedOnDemandSubTab = .config
+                                    loadOnDemandSubTab(tab: .config, app: app)
+                                } label: {
+                                    HStack(spacing: 10) {
                                         Circle()
                                             .fill(
                                                 app.enabled
@@ -888,51 +917,34 @@ struct ContentView: View {
                                                     : .secondary
                                             )
                                             .frame(width: 8, height: 8)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(app.name.isEmpty ? "Neue App" : app.name)
-                                            Text(app.host)
-                                                .font(.caption2.monospaced())
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack(spacing: 8) {
+                                                Text(app.name.isEmpty ? "Neue App" : app.name)
+                                                    .font(.headline)
+                                                Text(app.runtime.label)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                Text(app.unitKind.label)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Text("https://\(app.host)")
+                                                .font(.caption.monospaced())
+                                                .foregroundStyle(.secondary)
+                                            Text("\(app.targetHost):\(app.targetPort) • idle \(app.idleTimeoutSeconds)s")
+                                                .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(.secondary)
                                     }
-                                    .tag(app.id)
+                                    .padding(12)
+                                    .background(Color.secondary.opacity(0.06))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .frame(minWidth: 260, maxWidth: 320, minHeight: 420)
-                            .onAppear {
-                                ensureValidOnDemandSelection()
-                            }
-                            .onChange(of: viewModel.onDemandApps.map(\.id)) { _, _ in
-                                ensureValidOnDemandSelection()
-                            }
-                            .onChange(of: selectedOnDemandAppID) { _, newID in
-                                guard let newID,
-                                      let app = viewModel.onDemandApps.first(where: { $0.id == newID })
-                                else { return }
-                                loadOnDemandSubTab(tab: selectedOnDemandSubTab, app: app)
-                            }
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                if let selectedID = selectedOnDemandAppID,
-                                   let appBinding = bindingForOnDemandApp(id: selectedID)
-                                {
-                                    let app = appBinding.wrappedValue
-                                    let runtimeStatus = statusesByID[selectedID]
-                                    onDemandAppDetail(
-                                        app: appBinding,
-                                        runtimeStatus: runtimeStatus
-                                    )
-                                    .onAppear {
-                                        loadOnDemandSubTab(tab: selectedOnDemandSubTab, app: app)
-                                    }
-                                } else {
-                                    Text("Bitte links eine App auswählen.")
-                                        .foregroundStyle(.secondary)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                        .padding(.top, 8)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 420, alignment: .topLeading)
                         }
                     }
 
@@ -1333,31 +1345,11 @@ struct ContentView: View {
         return $viewModel.onDemandApps[index]
     }
 
-    private func ensureValidOnDemandSelection() {
-        let ids = viewModel.onDemandApps.map(\.id)
-        if let selected = selectedOnDemandAppID, ids.contains(selected) {
-            return
-        }
-        selectedOnDemandAppID = ids.first
-    }
-
     private func removeOnDemandAppAndUpdateSelection(id: UUID) {
-        let idsBefore = viewModel.onDemandApps.map(\.id)
-        let removedIndex = idsBefore.firstIndex(of: id)
         viewModel.removeOnDemandApp(id: id)
 
-        guard selectedOnDemandAppID == id else { return }
-        let idsAfter = viewModel.onDemandApps.map(\.id)
-        guard !idsAfter.isEmpty else {
+        if selectedOnDemandAppID == id {
             selectedOnDemandAppID = nil
-            return
-        }
-
-        if let removedIndex {
-            let nextIndex = min(removedIndex, idsAfter.count - 1)
-            selectedOnDemandAppID = idsAfter[nextIndex]
-        } else {
-            selectedOnDemandAppID = idsAfter.first
         }
     }
 
@@ -1365,7 +1357,7 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Wähle eine Vorlage oder lege eine Custom App an. Die Konfiguration öffnet sich danach direkt im Bearbeiten-Modus.")
+                    Text("Wähle eine Vorlage oder lege eine Custom App an. Danach erscheint die App in der Übersichtsliste.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -1380,8 +1372,7 @@ struct ContentView: View {
                             meta: "Podman/Docker • frei konfigurierbar"
                         ) {
                             viewModel.addOnDemandApp()
-                            selectedOnDemandAppID = viewModel.onDemandApps.last?.id
-                            selectedOnDemandSubTab = .config
+                            selectedOnDemandAppID = nil
                             showOnDemandPresetPicker = false
                         }
 
@@ -1393,8 +1384,7 @@ struct ContentView: View {
                                 meta: "\(preset.app.runtime.label) • \(preset.app.host) • Port \(preset.app.targetPort)"
                             ) {
                                 viewModel.addOnDemandPreset(preset)
-                                selectedOnDemandAppID = viewModel.onDemandApps.last?.id
-                                selectedOnDemandSubTab = .config
+                                selectedOnDemandAppID = nil
                                 showOnDemandPresetPicker = false
                             }
                         }

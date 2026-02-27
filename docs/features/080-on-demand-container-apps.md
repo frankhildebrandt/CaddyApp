@@ -55,3 +55,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Added runtime cleanup on app deletion (`container/pod rm -f`) with tolerant handling when unit is already missing.
 - 2026-02-27: Added per-app sub-tabs for config, host log filtering, container/pod logs, interactive shell launch, and event-log view.
 - 2026-02-27: Refined On-Demand UI to an overview layout (app list + single tabbed detail view) instead of per-card tabs.
+- 2026-02-27: Refined further to full-view switching: app overview list as default, then full detail/tab view with explicit back-to-list action.
