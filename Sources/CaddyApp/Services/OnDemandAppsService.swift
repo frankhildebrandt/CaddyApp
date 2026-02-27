@@ -14,6 +14,11 @@ actor OnDemandAppsService {
 
     private let runner = ShellCommandRunner()
     private let configStore = CustomConfigStore()
+    private let httpSession = URLSession(
+        configuration: .ephemeral,
+        delegate: NoRedirectURLSessionDelegate(),
+        delegateQueue: nil
+    )
     private let listenerQueue = DispatchQueue(label: "caddyapp.on-demand.gateway")
     private var listener: NWListener?
     private var maintenanceTask: Task<Void, Never>?
@@ -253,7 +258,7 @@ actor OnDemandAppsService {
             request.httpMethod = "GET"
             request.timeoutInterval = 2
             do {
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (_, response) = try await httpSession.data(for: request)
                 if let http = response as? HTTPURLResponse, (200..<500).contains(http.statusCode) {
                     return ActionResult(succeeded: true, message: "App is reachable")
                 }
@@ -281,7 +286,8 @@ actor OnDemandAppsService {
             if ["host", "content-length", "connection", "proxy-connection", "accept-encoding"].contains(lower) { continue }
             request.setValue(value, forHTTPHeaderField: name)
         }
-        request.setValue(app.targetHost, forHTTPHeaderField: "Host")
+        let forwardedHost = incoming.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        request.setValue(forwardedHost.isEmpty ? app.targetHost : forwardedHost, forHTTPHeaderField: "Host")
         // Prevent compressed upstream payloads because URLSession may transparently decode,
         // which can otherwise leave mismatched Content-Encoding headers for the browser.
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
@@ -290,7 +296,7 @@ actor OnDemandAppsService {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await httpSession.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return .text(status: 502, body: "Upstream response was not HTTP")
             }
@@ -826,6 +832,18 @@ actor OnDemandAppsService {
 private struct ActionResult {
     var succeeded: Bool
     var message: String
+}
+
+private final class NoRedirectURLSessionDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _: URLSession,
+        task _: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
 }
 
 private struct RunningCheckResult {
