@@ -755,84 +755,8 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.multipassServiceStatuses.map { ($0.id, $0) })
-                        ForEach($viewModel.multipassServices) { $service in
-                            let runtimeStatus = statusesByID[service.id]
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Toggle("", isOn: $service.enabled)
-                                        .labelsHidden()
-                                        .toggleStyle(.checkbox)
-                                    TextField("VM", text: $service.vmName)
-                                        .textFieldStyle(.roundedBorder)
-                                    TextField("Service", text: $service.serviceName)
-                                        .textFieldStyle(.roundedBorder)
-                                    TextField("Host", text: $service.host)
-                                        .textFieldStyle(.roundedBorder)
-                                }
-                                HStack {
-                                    TextField("Port", value: $service.targetPort, formatter: integerFormatter)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 90)
-                                    Picker("Scheme", selection: $service.scheme) {
-                                        Text("http").tag(MultipassServiceScheme.http)
-                                        Text("https").tag(MultipassServiceScheme.https)
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .frame(width: 150)
-                                    Toggle("AutoStart VM", isOn: $service.autoStartVM)
-                                        .toggleStyle(.checkbox)
-                                    Toggle("AutoStop VM", isOn: $service.autoStopVM)
-                                        .toggleStyle(.checkbox)
-                                    TextField("Idle s", value: $service.idleTimeoutSeconds, formatter: integerFormatter)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 90)
-                                }
-                                HStack {
-                                    TextField("systemd unit (optional)", text: $service.systemdUnit)
-                                        .textFieldStyle(.roundedBorder)
-                                    Toggle("AutoStart systemd", isOn: $service.autoStartSystemd)
-                                        .toggleStyle(.checkbox)
-                                    Toggle("AutoStop systemd", isOn: $service.autoStopSystemd)
-                                        .toggleStyle(.checkbox)
-                                }
-                                HStack {
-                                    if let runtimeStatus {
-                                        Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Button("Start") {
-                                        viewModel.controlMultipassService(serviceID: service.id, action: .start)
-                                    }
-                                    .disabled(viewModel.isChangingMultipassServiceRuntime)
-                                    Button("Stop") {
-                                        viewModel.controlMultipassService(serviceID: service.id, action: .stop)
-                                    }
-                                    .disabled(viewModel.isChangingMultipassServiceRuntime)
-                                    if !service.systemdUnit.isEmpty {
-                                        Button("Start systemd") {
-                                            viewModel.controlMultipassService(serviceID: service.id, action: .startSystemd)
-                                        }
-                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
-                                        Button("Restart systemd") {
-                                            viewModel.controlMultipassService(serviceID: service.id, action: .restartSystemd)
-                                        }
-                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
-                                        Button("Stop systemd") {
-                                            viewModel.controlMultipassService(serviceID: service.id, action: .stopSystemd)
-                                        }
-                                        .disabled(viewModel.isChangingMultipassServiceRuntime)
-                                    }
-                                    Button(role: .destructive) {
-                                        viewModel.removeMultipassService(id: service.id)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                }
-                                Divider()
-                            }
+                        ForEach(Array(viewModel.multipassServices.indices), id: \.self) { index in
+                            multipassServiceRow(at: index, statusesByID: statusesByID)
                         }
                     }
 
@@ -986,6 +910,128 @@ struct ContentView: View {
             }
             .buttonStyle(.borderless)
             .help("Route entfernen")
+        }
+    }
+
+    private func multipassServiceRow(
+        at index: Int,
+        statusesByID: [UUID: MultipassServiceRuntimeStatus]
+    ) -> some View {
+        let serviceBinding = $viewModel.multipassServices[index]
+        let serviceID = serviceBinding.wrappedValue.id
+        let runtimeStatus = statusesByID[serviceID]
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Toggle("", isOn: serviceBinding.enabled)
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                TextField("VM", text: serviceBinding.vmName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Service", text: serviceBinding.serviceName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Host", text: serviceBinding.host)
+                    .textFieldStyle(.roundedBorder)
+            }
+            HStack {
+                TextField("Port", value: serviceBinding.targetPort, formatter: integerFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                Picker("Scheme", selection: serviceBinding.scheme) {
+                    Text("http").tag(MultipassServiceScheme.http)
+                    Text("https").tag(MultipassServiceScheme.https)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
+                    .toggleStyle(.checkbox)
+                Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
+                    .toggleStyle(.checkbox)
+                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: integerFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+            }
+            HStack {
+                TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
+                    .textFieldStyle(.roundedBorder)
+                Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
+                    .toggleStyle(.checkbox)
+                Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
+                    .toggleStyle(.checkbox)
+            }
+            HStack {
+                if let runtimeStatus {
+                    Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Start") {
+                    viewModel.controlMultipassService(serviceID: serviceID, action: .start)
+                }
+                .disabled(viewModel.isChangingMultipassServiceRuntime)
+                Button("Stop") {
+                    viewModel.controlMultipassService(serviceID: serviceID, action: .stop)
+                }
+                .disabled(viewModel.isChangingMultipassServiceRuntime)
+                if !serviceBinding.wrappedValue.systemdUnit.isEmpty {
+                    Button("Start systemd") {
+                        viewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
+                    }
+                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                    Button("Restart systemd") {
+                        viewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
+                    }
+                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                    Button("Stop systemd") {
+                        viewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
+                    }
+                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                }
+                Button(role: .destructive) {
+                    viewModel.removeMultipassService(id: serviceID)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+            }
+            Divider()
+        }
+    }
+
+    private func appRepositoryRow(at index: Int) -> some View {
+        let repositoryBinding = $viewModel.appRepositories[index]
+        let repositoryID = repositoryBinding.wrappedValue.id
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: repositoryBinding.enabled)
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                TextField("Repository-Name", text: repositoryBinding.name)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 220)
+                TextField("Repository-URL", text: repositoryBinding.entryURL)
+                    .textFieldStyle(.roundedBorder)
+                Button {
+                    viewModel.moveAppRepositoryUp(id: repositoryID)
+                } label: {
+                    Image(systemName: "arrow.up")
+                }
+                .buttonStyle(.borderless)
+                Button {
+                    viewModel.moveAppRepositoryDown(id: repositoryID)
+                } label: {
+                    Image(systemName: "arrow.down")
+                }
+                .buttonStyle(.borderless)
+                Button(role: .destructive) {
+                    viewModel.removeAppRepository(id: repositoryID)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+            }
         }
     }
 
@@ -1486,37 +1532,8 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
-                            ForEach($viewModel.appRepositories) { $repository in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack(spacing: 8) {
-                                        Toggle("", isOn: $repository.enabled)
-                                            .labelsHidden()
-                                            .toggleStyle(.checkbox)
-                                        TextField("Repository-Name", text: $repository.name)
-                                            .textFieldStyle(.roundedBorder)
-                                            .frame(maxWidth: 220)
-                                        TextField("Repository-URL", text: $repository.entryURL)
-                                            .textFieldStyle(.roundedBorder)
-                                        Button {
-                                            viewModel.moveAppRepositoryUp(id: repository.id)
-                                        } label: {
-                                            Image(systemName: "arrow.up")
-                                        }
-                                        .buttonStyle(.borderless)
-                                        Button {
-                                            viewModel.moveAppRepositoryDown(id: repository.id)
-                                        } label: {
-                                            Image(systemName: "arrow.down")
-                                        }
-                                        .buttonStyle(.borderless)
-                                        Button(role: .destructive) {
-                                            viewModel.removeAppRepository(id: repository.id)
-                                        } label: {
-                                            Image(systemName: "trash")
-                                        }
-                                        .buttonStyle(.borderless)
-                                    }
-                                }
+                            ForEach(Array(viewModel.appRepositories.indices), id: \.self) { index in
+                                appRepositoryRow(at: index)
                             }
 
                             HStack(spacing: 8) {
