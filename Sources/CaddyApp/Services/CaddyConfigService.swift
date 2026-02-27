@@ -133,7 +133,8 @@ struct CaddyConfigService {
             )
             guard getNameInfoResult == 0 else { continue }
 
-            let ipAddress = String(cString: ipBuffer)
+            let rawIP = ipBuffer.prefix { $0 != 0 }
+            let ipAddress = String(decoding: rawIP.map { UInt8(bitPattern: $0) }, as: UTF8.self)
             guard !ipAddress.hasPrefix("169.254.") else { continue }
 
             addresses.append(ipAddress)
