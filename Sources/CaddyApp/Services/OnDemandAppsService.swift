@@ -567,8 +567,13 @@ actor OnDemandAppsService {
     }
 
     private func warmupTimeoutSeconds(for app: OnDemandAppDraft) -> TimeInterval {
-        if app.name.lowercased().contains("ephe") || app.unitName.lowercased().contains("ephe") {
+        let name = app.name.lowercased()
+        let unitName = app.unitName.lowercased()
+        if name.contains("ephe") || unitName.contains("ephe") {
             return 180
+        }
+        if name.contains("kimai") || unitName.contains("kimai") {
+            return 120
         }
         return 30
     }

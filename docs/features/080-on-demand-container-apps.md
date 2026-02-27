@@ -61,3 +61,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Gateway adjusted to keep returning the on-demand status/waiting page while an app is still not reachable during warm-up instead of returning a hard 502 text error.
 - 2026-02-27: Gateway proxy now forces identity encoding upstream and strips forwarded `Content-Encoding` to avoid browser `ERR_CONTENT_DECODING_FAILED` on proxied app responses (e.g. `ephe.localhost`).
 - 2026-02-27: Enabled debounced auto-save/apply for On-Demand app edits; manual save is no longer required for app draft changes.
+- 2026-02-27: Updated Kimai preset to a Podman pod setup (`kimai` + `mariadb`) so first start no longer requires manual DB wiring; added longer Kimai warm-up timeout.

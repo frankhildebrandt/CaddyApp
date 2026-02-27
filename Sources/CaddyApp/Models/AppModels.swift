@@ -254,21 +254,21 @@ enum OnDemandAppPresetCatalog {
             key: "kimai",
             title: "Kimai",
             iconSystemName: "clock.badge.checkmark",
-            summary: "Time tracking app (usually needs DB/env setup).",
+            summary: "Time tracking app with bundled MariaDB pod setup.",
             app: OnDemandAppDraft(
                 name: "Kimai",
                 runtime: .podman,
-                unitKind: .container,
+                unitKind: .pod,
                 unitName: "caddyapp-kimai",
                 host: "kimai.localhost",
                 targetPort: 8001,
                 idleTimeoutSeconds: 900,
                 enabled: true,
                 startMode: .runCommand,
-                runArguments: "run -d --name caddyapp-kimai -p 8001:8001 kimai/kimai2:apache",
+                runArguments: "pod create --name caddyapp-kimai -p 8001:8001 && run -d --pod caddyapp-kimai --name caddyapp-kimai-db -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11 && run -d --pod caddyapp-kimai --name caddyapp-kimai-app -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4' kimai/kimai2:apache",
                 healthPath: "/"
             ),
-            notes: "Kimai often needs database/env configuration. Edit run arguments before first use."
+            notes: "Podman preset creates a pod with Kimai + MariaDB on first start. Default credentials are for local dev only; change env vars before productive use."
         ),
         OnDemandAppPreset(
             key: "ephe",
