@@ -33,6 +33,7 @@ final class DashboardViewModel: ObservableObject {
     private let caddyInstallationService: CaddyInstallationService
     private let customConfigStore: CustomConfigStore
     private let onDemandAppsService: OnDemandAppsService
+    private let shellRunner = ShellCommandRunner()
     private var hasLoaded = false
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
@@ -335,6 +336,144 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    func hostLogText(for app: OnDemandAppDraft) -> String {
+        let raw = AppLogService.readLog()
+        let needles = [
+            "host=\(app.host.lowercased())",
+            "app=\(app.name.lowercased())",
+            app.host.lowercased()
+        ]
+        return filterLogLines(raw, containsAny: needles)
+    }
+
+    func eventLogText(for app: OnDemandAppDraft) -> String {
+        let raw = AppLogService.readLog()
+        let appNeedles = [
+            "app=\(app.name.lowercased())",
+            "unit=\(app.unitKind.rawValue):\(app.unitName.lowercased())",
+            app.unitName.lowercased(),
+            app.host.lowercased()
+        ]
+        let eventNeedles = [
+            "on-demand",
+            "start",
+            "stop",
+            "delete",
+            "backup",
+            "create",
+            "reload",
+            "requested",
+            "succeeded",
+            "failed"
+        ]
+        return raw
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { line in
+                let lowered = line.lowercased()
+                return appNeedles.contains(where: { lowered.contains($0) })
+                    && eventNeedles.contains(where: { lowered.contains($0) })
+            }
+            .joined(separator: "\n")
+    }
+
+    func fetchContainerLogText(for app: OnDemandAppDraft, tailLines: Int = 200) async -> String {
+        let unit = shellEscape(app.unitName)
+        return await Task.detached(priority: .userInitiated) { [shellRunner] in
+            let command: String
+            switch app.unitKind {
+            case .container:
+                command = "\(app.runtime.rawValue) logs --tail \(tailLines) \(unit)"
+            case .pod:
+                command = "\(app.runtime.rawValue) pod logs --tail \(tailLines) \(unit)"
+            }
+            let result = shellRunner.runShell(command)
+            let text = [result.stdout, result.stderr]
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                return "Keine Ausgabe vorhanden."
+            }
+            return text
+        }.value
+    }
+
+    func runShellCommandInApp(_ command: String, app: OnDemandAppDraft) async -> String {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Bitte einen Befehl eingeben." }
+        let unit = shellEscape(app.unitName)
+        let shellCommand = shellEscape(trimmed)
+        return await Task.detached(priority: .userInitiated) { [shellRunner] in
+            let runtimeCommand: String
+            switch app.unitKind {
+            case .container:
+                runtimeCommand = "\(app.runtime.rawValue) exec \(unit) sh -lc \(shellCommand)"
+            case .pod:
+                runtimeCommand = "\(app.runtime.rawValue) pod exec \(unit) sh -lc \(shellCommand)"
+            }
+            let result = shellRunner.runShell(runtimeCommand)
+            let output = [result.stdout, result.stderr]
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.isEmpty {
+                return "Befehl ausgeführt (keine Ausgabe). Exit-Code: \(result.exitCode)"
+            }
+            return output
+        }.value
+    }
+
+    func openInteractiveShellForOnDemandApp(_ app: OnDemandAppDraft) -> OnDemandAppControlResult {
+        let unit = app.unitName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !unit.isEmpty else {
+            return OnDemandAppControlResult(
+                succeeded: false,
+                message: "Container/Pod Name fehlt.",
+                performedAt: Date()
+            )
+        }
+
+        let escapedUnit = shellEscape(unit)
+        let shellSequence: String
+        switch app.unitKind {
+        case .container:
+            shellSequence = """
+            \(app.runtime.rawValue) exec -it \(escapedUnit) /bin/sh || \
+            \(app.runtime.rawValue) exec -it \(escapedUnit) sh || \
+            \(app.runtime.rawValue) exec -it \(escapedUnit) /bin/bash || \
+            \(app.runtime.rawValue) exec -it \(escapedUnit) bash
+            """
+        case .pod:
+            shellSequence = """
+            \(app.runtime.rawValue) pod exec -it \(escapedUnit) /bin/sh || \
+            \(app.runtime.rawValue) pod exec -it \(escapedUnit) sh || \
+            \(app.runtime.rawValue) pod exec -it \(escapedUnit) /bin/bash || \
+            \(app.runtime.rawValue) pod exec -it \(escapedUnit) bash
+            """
+        }
+
+        let escapedAppleScriptCommand = shellSequence
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let result = shellRunner.run(
+            "/usr/bin/osascript",
+            arguments: [
+                "-e", "tell application \"Terminal\" to activate",
+                "-e", "tell application \"Terminal\" to do script \"\(escapedAppleScriptCommand)\""
+            ]
+        )
+        let succeeded = result.isSuccess
+        let message = succeeded
+            ? "Interaktive Shell in Terminal geöffnet."
+            : ([result.stderr, result.stdout]
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines))
+        return OnDemandAppControlResult(
+            succeeded: succeeded,
+            message: message.isEmpty ? "Shell konnte nicht geöffnet werden." : message,
+            performedAt: Date()
+        )
+    }
+
     private func refreshAfterCaddyUpdateIfNeeded(_ result: CaddyUpdateOperationResult) async {
         guard result.succeeded || result.recoverySucceeded == true else { return }
         let snapshot = await dashboardService.loadSnapshot()
@@ -443,6 +582,21 @@ final class DashboardViewModel: ObservableObject {
         guard refreshPendingAfterRuntimeChange else { return }
         refreshPendingAfterRuntimeChange = false
         refresh()
+    }
+
+    private func filterLogLines(_ raw: String, containsAny needles: [String]) -> String {
+        raw
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { line in
+                let lowered = line.lowercased()
+                return needles.contains(where: { !$0.isEmpty && lowered.contains($0) })
+            }
+            .joined(separator: "\n")
+    }
+
+    nonisolated private func shellEscape(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private func validateCustomConfig(routes: [CustomRouteDraft]) -> String? {

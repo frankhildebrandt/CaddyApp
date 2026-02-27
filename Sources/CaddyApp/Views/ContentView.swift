@@ -2,6 +2,26 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.openURL) private var openURL
+    private enum OnDemandSubTab: String, CaseIterable, Identifiable {
+        case config
+        case hostLog = "host_log"
+        case containerLog = "container_log"
+        case shell
+        case eventLog = "event_log"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .config: return "Config"
+            case .hostLog: return "Host-Log"
+            case .containerLog: return "Container/Pod-Log"
+            case .shell: return "Shell"
+            case .eventLog: return "Eventlog"
+            }
+        }
+    }
+
     private enum SidebarTab: String, CaseIterable, Identifiable {
         case dashboard
         case caddyTLS = "caddy_tls"
@@ -48,6 +68,13 @@ struct ContentView: View {
     @State private var selectedTab: SidebarTab? = .dashboard
     @State private var editingOnDemandAppID: UUID?
     @State private var showOnDemandPresetPicker = false
+    @State private var onDemandSelectedSubTab: [UUID: OnDemandSubTab] = [:]
+    @State private var onDemandHostLogByAppID: [UUID: String] = [:]
+    @State private var onDemandContainerLogByAppID: [UUID: String] = [:]
+    @State private var onDemandEventLogByAppID: [UUID: String] = [:]
+    @State private var onDemandShellCommandByAppID: [UUID: String] = [:]
+    @State private var onDemandShellOutputByAppID: [UUID: String] = [:]
+    @State private var onDemandLoadingByAppID: [UUID: Bool] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -832,7 +859,7 @@ struct ContentView: View {
             GroupBox("On-Demand Apps") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .center, spacing: 10) {
-                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout. Konfiguration ist nur im Bearbeiten-Modus sichtbar.")
+                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout. Jede App hat Sub-Tabs für Config, Host-Log, Container/Pod-Log, Shell und Eventlog.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -893,7 +920,8 @@ struct ContentView: View {
         app: Binding<OnDemandAppDraft>,
         runtimeStatus: OnDemandAppRuntimeStatus?
     ) -> some View {
-        let isEditing = editingOnDemandAppID == app.wrappedValue.id
+        let appID = app.wrappedValue.id
+        let selectedSubTab = bindingOnDemandSubTab(appID: appID)
         let phase = runtimeStatus?.phase ?? .stopped
         let isEnabled = app.wrappedValue.enabled
 
@@ -939,7 +967,7 @@ struct ContentView: View {
                         if isEnabled {
                             Button(phase == .running ? "Stop" : "Start") {
                                 viewModel.setOnDemandAppRunning(
-                                    appID: app.wrappedValue.id,
+                                    appID: appID,
                                     shouldRun: phase != .running
                                 )
                             }
@@ -948,14 +976,8 @@ struct ContentView: View {
                             .disabled(viewModel.isChangingOnDemandAppRuntime)
                         }
 
-                        Button("Logs") {
-                            openLogsForOnDemandApp(named: app.wrappedValue.name, unitName: app.wrappedValue.unitName)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
                         Button("Löschen", role: .destructive) {
-                            let id = app.wrappedValue.id
+                            let id = appID
                             if editingOnDemandAppID == id {
                                 editingOnDemandAppID = nil
                             }
@@ -964,8 +986,8 @@ struct ContentView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
 
-                        Button(isEditing ? "Fertig" : "Bearbeiten") {
-                            editingOnDemandAppID = isEditing ? nil : app.wrappedValue.id
+                        Button("Logs") {
+                            openLogsForOnDemandApp(named: app.wrappedValue.name, unitName: app.wrappedValue.unitName)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -973,8 +995,30 @@ struct ContentView: View {
                 }
             }
 
-            if isEditing {
+            Picker("Sub-Tab", selection: selectedSubTab) {
+                ForEach(OnDemandSubTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: selectedSubTab.wrappedValue) { _, newTab in
+                loadOnDemandSubTab(tab: newTab, app: app.wrappedValue)
+            }
+            .onAppear {
+                loadOnDemandSubTab(tab: selectedSubTab.wrappedValue, app: app.wrappedValue)
+            }
+
+            switch selectedSubTab.wrappedValue {
+            case .config:
                 onDemandAppEditor(app: app)
+            case .hostLog:
+                onDemandHostLogView(app: app.wrappedValue)
+            case .containerLog:
+                onDemandContainerLogView(app: app.wrappedValue)
+            case .shell:
+                onDemandShellView(app: app.wrappedValue)
+            case .eventLog:
+                onDemandEventLogView(app: app.wrappedValue)
             }
         }
         .padding(12)
@@ -1064,6 +1108,191 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.top, 4)
+    }
+
+    private func onDemandHostLogView(app: OnDemandAppDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Gefilterte Host-Logs aus dem App-Log")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Aktualisieren") {
+                    onDemandHostLogByAppID[app.id] = viewModel.hostLogText(for: app)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            let text = onDemandHostLogByAppID[app.id] ?? ""
+            if text.isEmpty {
+                Text("Keine passenden Host-Log-Zeilen gefunden.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                TextEditor(text: .constant(text))
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 180)
+            }
+        }
+    }
+
+    private func onDemandContainerLogView(app: OnDemandAppDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Container/Pod-Logs (\(app.runtime.label))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Aktualisieren") {
+                    refreshOnDemandContainerLog(app: app)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(onDemandLoadingByAppID[app.id] == true)
+            }
+
+            if onDemandLoadingByAppID[app.id] == true {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            let text = onDemandContainerLogByAppID[app.id] ?? ""
+            if text.isEmpty {
+                Text("Noch keine Container/Pod-Logs geladen.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                TextEditor(text: .constant(text))
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 180)
+            }
+        }
+    }
+
+    private func onDemandShellView(app: OnDemandAppDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button("Interaktive Shell öffnen") {
+                    let result = viewModel.openInteractiveShellForOnDemandApp(app)
+                    onDemandShellOutputByAppID[app.id] = result.message
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+                Spacer()
+            }
+
+            Text("Einzeilige Befehle direkt im Container/Pod ausführen")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            let commandBinding = bindingOnDemandShellCommand(appID: app.id)
+            HStack(spacing: 8) {
+                TextField("z. B. env | head -n 20", text: commandBinding)
+                    .textFieldStyle(.roundedBorder)
+                Button("Ausführen") {
+                    runOnDemandShellCommand(app: app, command: commandBinding.wrappedValue)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(onDemandLoadingByAppID[app.id] == true)
+            }
+
+            if onDemandLoadingByAppID[app.id] == true {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            let output = onDemandShellOutputByAppID[app.id] ?? ""
+            if output.isEmpty {
+                Text("Noch keine Shell-Ausgabe vorhanden.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                TextEditor(text: .constant(output))
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 180)
+            }
+        }
+    }
+
+    private func onDemandEventLogView(app: OnDemandAppDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Eventlog (Create, Start, Stop, Backup, ...)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Aktualisieren") {
+                    onDemandEventLogByAppID[app.id] = viewModel.eventLogText(for: app)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            let text = onDemandEventLogByAppID[app.id] ?? ""
+            if text.isEmpty {
+                Text("Keine passenden Event-Zeilen gefunden.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                TextEditor(text: .constant(text))
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 180)
+            }
+        }
+    }
+
+    private func loadOnDemandSubTab(tab: OnDemandSubTab, app: OnDemandAppDraft) {
+        switch tab {
+        case .config:
+            break
+        case .hostLog:
+            onDemandHostLogByAppID[app.id] = viewModel.hostLogText(for: app)
+        case .containerLog:
+            if onDemandContainerLogByAppID[app.id] == nil {
+                refreshOnDemandContainerLog(app: app)
+            }
+        case .shell:
+            if onDemandShellCommandByAppID[app.id] == nil {
+                onDemandShellCommandByAppID[app.id] = "env | head -n 20"
+            }
+        case .eventLog:
+            onDemandEventLogByAppID[app.id] = viewModel.eventLogText(for: app)
+        }
+    }
+
+    private func refreshOnDemandContainerLog(app: OnDemandAppDraft) {
+        onDemandLoadingByAppID[app.id] = true
+        Task {
+            let text = await viewModel.fetchContainerLogText(for: app, tailLines: 200)
+            onDemandContainerLogByAppID[app.id] = text
+            onDemandLoadingByAppID[app.id] = false
+        }
+    }
+
+    private func runOnDemandShellCommand(app: OnDemandAppDraft, command: String) {
+        onDemandLoadingByAppID[app.id] = true
+        Task {
+            let output = await viewModel.runShellCommandInApp(command, app: app)
+            onDemandShellOutputByAppID[app.id] = output
+            onDemandLoadingByAppID[app.id] = false
+        }
+    }
+
+    private func bindingOnDemandSubTab(appID: UUID) -> Binding<OnDemandSubTab> {
+        Binding(
+            get: { onDemandSelectedSubTab[appID] ?? .config },
+            set: { onDemandSelectedSubTab[appID] = $0 }
+        )
+    }
+
+    private func bindingOnDemandShellCommand(appID: UUID) -> Binding<String> {
+        Binding(
+            get: { onDemandShellCommandByAppID[appID] ?? "" },
+            set: { onDemandShellCommandByAppID[appID] = $0 }
+        )
     }
 
     private var onDemandPresetPickerSheet: some View {
