@@ -16,7 +16,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - In scope: Map each app to one or more URLs handled by CaddyApp/Caddy.
 - In scope: Auto-start app on incoming request to the configured URL.
 - In scope: Auto-stop app/container/pod after a user-defined period without requests.
-- In scope: Sensible default app templates for Loki, Grafana, Kimai, and Ephe (`https://github.com/unvalley/ephe`).
+- In scope: Sensible default app templates for Loki, Grafana, Kimai, Ephe (`https://github.com/unvalley/ephe`), and Penpot (`https://github.com/penpot/penpot`).
 - Out of scope: Full container image build pipeline or compose authoring UI (initial version may use presets + simple runtime args).
 - Out of scope: Multi-node orchestration (Kubernetes, Swarm, Nomad).
 
@@ -26,7 +26,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - [x] First request to the app URL triggers best-effort start of the corresponding container or pod before proxying traffic.
 - [x] App is stopped automatically when no requests were received for the configured timeout window.
 - [x] Repeated requests within the timeout window keep the app running (idle timer extends/reset on access).
-- [x] Default templates for Loki, Grafana, Kimai, and Ephe can be added from the UI with editable values.
+- [x] Default templates for Loki, Grafana, Kimai, Ephe, and Penpot can be added from the UI with editable values.
 - [x] App state (stopped / starting / running / stopping / error) is visible in the app UI.
 - [x] Failures to start/stop are surfaced to the user with actionable logs or error messages.
 - [x] Deleting an on-demand app also removes the associated runtime unit (container/pod).
@@ -62,3 +62,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Gateway proxy now forces identity encoding upstream and strips forwarded `Content-Encoding` to avoid browser `ERR_CONTENT_DECODING_FAILED` on proxied app responses (e.g. `ephe.localhost`).
 - 2026-02-27: Enabled debounced auto-save/apply for On-Demand app edits; manual save is no longer required for app draft changes.
 - 2026-02-27: Updated Kimai preset to a Podman pod setup (`kimai` + `mariadb`) so first start no longer requires manual DB wiring; added longer Kimai warm-up timeout.
+- 2026-02-27: Added Penpot preset (local catalog + YAML repository) using an official multi-service stack translated to a Podman pod (`frontend`, `backend`, `exporter`, `postgres`, `valkey`).

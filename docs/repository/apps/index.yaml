@@ -13,3 +13,5 @@ spec:
       url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/kimai.yaml
     - key: ephe
       url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/ephe.yaml
+    - key: penpot
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/penpot.yaml

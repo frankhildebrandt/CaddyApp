@@ -270,6 +270,8 @@ actor AppRepositoryService {
             return "clock.badge.checkmark"
         case "ephe":
             return "doc.text.magnifyingglass"
+        case "penpot":
+            return "pencil.and.ruler"
         default:
             return "shippingbox"
         }
