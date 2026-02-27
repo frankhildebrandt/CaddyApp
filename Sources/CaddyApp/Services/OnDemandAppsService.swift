@@ -360,11 +360,14 @@ actor OnDemandAppsService {
                 states[appID] = state
                 return .ready(app)
             }
-            state.phase = .error
+            // Keep serving the waiting/status page while the app is not reachable yet.
+            // This avoids hard gateway errors for transient warm-up gaps.
+            state.phase = .starting
             state.lastError = warmup.message
             state.lastActionAt = Date()
             states[appID] = state
-            return .failure(.text(status: 502, body: "App '\(app.name)' is running but not reachable yet: \(warmup.message)"))
+            queueBackgroundStartIfNeeded(appID: appID)
+            return .waiting(waitingPageResponse(for: app, phase: state.phase))
         }
 
         queueBackgroundStartIfNeeded(appID: appID)
