@@ -6,8 +6,10 @@ struct ContentView: View {
         case dashboard
         case caddyTLS = "caddy_tls"
         case runtime
+        case onDemandApps = "on_demand_apps"
         case custom
         case config
+        case logs
         case features
 
         var id: String { rawValue }
@@ -17,8 +19,10 @@ struct ContentView: View {
             case .dashboard: return "Dashboard"
             case .caddyTLS: return "Caddy / TLS"
             case .runtime: return "Runtime"
+            case .onDemandApps: return "On-Demand Apps"
             case .custom: return "Custom"
             case .config: return "Config"
+            case .logs: return "Logging"
             case .features: return "Features"
             }
         }
@@ -28,8 +32,10 @@ struct ContentView: View {
             case .dashboard: return "rectangle.grid.2x2"
             case .caddyTLS: return "lock.shield"
             case .runtime: return "server.rack"
+            case .onDemandApps: return "bolt.badge.clock"
             case .custom: return "slider.horizontal.3"
             case .config: return "doc.text"
+            case .logs: return "terminal"
             case .features: return "list.bullet.clipboard"
             }
         }
@@ -40,6 +46,8 @@ struct ContentView: View {
     @State private var showCaddyUpdateConfirmation = false
     @State private var showReloadConfigConfirmation = false
     @State private var selectedTab: SidebarTab? = .dashboard
+    @State private var editingOnDemandAppID: UUID?
+    @State private var showOnDemandPresetPicker = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +63,9 @@ struct ContentView: View {
             viewModel.refreshIfNeeded()
         }
         .background(MainWindowDelegateInstaller())
+        .sheet(isPresented: $showOnDemandPresetPicker) {
+            onDemandPresetPickerSheet
+        }
         .confirmationDialog(
             "Caddy aktualisieren?",
             isPresented: $showCaddyUpdateConfirmation,
@@ -107,16 +118,22 @@ struct ContentView: View {
                         systemSection(snapshot)
                     case .runtime:
                         runtimeSection(snapshot)
+                    case .onDemandApps:
+                        onDemandAppsSection(snapshot)
                     case .custom:
                         customConfigSection(snapshot)
                     case .config:
                         configSection(snapshot)
+                    case .logs:
+                        loggingSection()
                     case .features:
                         featureSection(snapshot)
                     }
                 } else if viewModel.isLoading {
                     ProgressView("Loading local environment...")
                         .padding(.top, 24)
+                } else if (selectedTab ?? .dashboard) == .logs {
+                    loggingSection()
                 } else {
                     Text("No data loaded yet")
                         .foregroundStyle(.secondary)
@@ -808,6 +825,353 @@ struct ContentView: View {
         }
     }
 
+    private func onDemandAppsSection(_ snapshot: DashboardSnapshot) -> some View {
+        let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.onDemandAppStatuses.map { ($0.appID, $0) })
+
+        return VStack(alignment: .leading, spacing: 16) {
+            GroupBox("On-Demand Apps") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center, spacing: 10) {
+                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout. Konfiguration ist nur im Bearbeiten-Modus sichtbar.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            showOnDemandPresetPicker = true
+                        } label: {
+                            Label("Hinzufügen", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+
+                    if viewModel.onDemandApps.isEmpty {
+                        Text("Noch keine On-Demand-App angelegt.")
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach($viewModel.onDemandApps) { $app in
+                                let runtimeStatus = statusesByID[app.id]
+                                onDemandAppCard(app: $app, runtimeStatus: runtimeStatus)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Button("Änderungen speichern") {
+                            viewModel.saveCustomConfig()
+                        }
+                        .disabled(viewModel.isSavingCustomConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
+
+                        if viewModel.isSavingCustomConfig {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    if let validationError = viewModel.customConfigValidationError {
+                        Text(validationError)
+                            .foregroundStyle(.red)
+                    }
+                    if let saveResult = viewModel.lastCustomConfigSaveResult {
+                        Text(saveResult.message)
+                            .foregroundStyle(saveResult.succeeded ? .green : .red)
+                            .font(.caption)
+                    }
+                    if let controlResult = viewModel.lastOnDemandAppControlResult {
+                        Text(controlResult.message)
+                            .foregroundStyle(controlResult.succeeded ? .green : .red)
+                            .font(.caption)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private func onDemandAppCard(
+        app: Binding<OnDemandAppDraft>,
+        runtimeStatus: OnDemandAppRuntimeStatus?
+    ) -> some View {
+        let isEditing = editingOnDemandAppID == app.wrappedValue.id
+        let phase = runtimeStatus?.phase ?? .stopped
+        let isEnabled = app.wrappedValue.enabled
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(app.wrappedValue.name.isEmpty ? "Neue App" : app.wrappedValue.name)
+                            .font(.headline)
+                        Text(app.wrappedValue.runtime.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(app.wrappedValue.unitKind.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("https://\(app.wrappedValue.host.isEmpty ? "host.localhost" : app.wrappedValue.host)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    Text("\(app.wrappedValue.targetHost):\(app.wrappedValue.targetPort) • idle \(app.wrappedValue.idleTimeoutSeconds)s • gateway \(OnDemandAppsService.gatewayPort)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let lastAccessAt = runtimeStatus?.lastAccessAt {
+                        Text("Letzter Zugriff: \(lastAccessAt.formatted(date: .abbreviated, time: .standard))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let lastError = runtimeStatus?.lastError, !lastError.isEmpty {
+                        Text(lastError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(isEnabled ? phase.label : "Disabled")
+                        .foregroundStyle(isEnabled ? onDemandPhaseColor(phase) : .secondary)
+
+                    HStack(spacing: 6) {
+                        if isEnabled {
+                            Button(phase == .running ? "Stop" : "Start") {
+                                viewModel.setOnDemandAppRunning(
+                                    appID: app.wrappedValue.id,
+                                    shouldRun: phase != .running
+                                )
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(viewModel.isChangingOnDemandAppRuntime)
+                        }
+
+                        Button("Logs") {
+                            openLogsForOnDemandApp(named: app.wrappedValue.name, unitName: app.wrappedValue.unitName)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button("Löschen", role: .destructive) {
+                            let id = app.wrappedValue.id
+                            if editingOnDemandAppID == id {
+                                editingOnDemandAppID = nil
+                            }
+                            viewModel.removeOnDemandApp(id: id)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button(isEditing ? "Fertig" : "Bearbeiten") {
+                            editingOnDemandAppID = isEditing ? nil : app.wrappedValue.id
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            if isEditing {
+                onDemandAppEditor(app: app)
+            }
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func onDemandAppEditor(app: Binding<OnDemandAppDraft>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Toggle("Aktiv", isOn: app.enabled)
+                    .toggleStyle(.checkbox)
+                TextField("Name", text: app.name)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Host (z. B. grafana.localhost)", text: app.host)
+                    .textFieldStyle(.roundedBorder)
+                Button(role: .destructive) {
+                    let id = app.wrappedValue.id
+                    if editingOnDemandAppID == id {
+                        editingOnDemandAppID = nil
+                    }
+                    viewModel.removeOnDemandApp(id: id)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+            }
+
+            HStack(spacing: 8) {
+                Picker("Runtime", selection: app.runtime) {
+                    ForEach(ContainerRuntimeKind.allCases, id: \.self) { runtime in
+                        Text(runtime.label).tag(runtime)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220)
+
+                Picker("Unit", selection: app.unitKind) {
+                    ForEach(ContainerUnitKind.allCases, id: \.self) { kind in
+                        Text(kind.label).tag(kind)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220)
+
+                TextField("Container/Pod Name", text: app.unitName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Target Host", text: app.targetHost)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Target Port", value: app.targetPort, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 110)
+                TextField("Idle (s)", value: app.idleTimeoutSeconds, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 110)
+                TextField("Health Path", text: app.healthPath)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 220)
+            }
+
+            HStack(spacing: 8) {
+                Picker("Start", selection: app.startMode) {
+                    ForEach(OnDemandStartMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+
+                Text("Gateway: 127.0.0.1:\(OnDemandAppsService.gatewayPort)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+
+            TextField(
+                "Run Arguments (z. B. run -d --name myapp -p 3000:3000 image:tag)",
+                text: app.runArguments
+            )
+            .textFieldStyle(.roundedBorder)
+            .disabled(app.wrappedValue.startMode != .runCommand)
+
+            Text("Bei 'Run Command' wird `<runtime> <runArguments>` ausgeführt, falls der Container/Pod noch nicht läuft.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+    }
+
+    private var onDemandPresetPickerSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Wähle eine Vorlage oder lege eine Custom App an. Die Konfiguration öffnet sich danach direkt im Bearbeiten-Modus.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    let columns = [
+                        GridItem(.adaptive(minimum: 220), spacing: 12)
+                    ]
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        onDemandAddOptionTile(
+                            title: "Custom App",
+                            iconSystemName: "slider.horizontal.3",
+                            summary: "Leere On-Demand-App mit eigener Runtime/Start-Konfiguration.",
+                            meta: "Podman/Docker • frei konfigurierbar"
+                        ) {
+                            viewModel.addOnDemandApp()
+                            editingOnDemandAppID = viewModel.onDemandApps.last?.id
+                            showOnDemandPresetPicker = false
+                        }
+
+                        ForEach(OnDemandAppPresetCatalog.all) { preset in
+                            onDemandAddOptionTile(
+                                title: preset.title,
+                                iconSystemName: preset.iconSystemName,
+                                summary: preset.summary,
+                                meta: "\(preset.app.runtime.label) • \(preset.app.host) • Port \(preset.app.targetPort)"
+                            ) {
+                                viewModel.addOnDemandPreset(preset)
+                                editingOnDemandAppID = viewModel.onDemandApps.last?.id
+                                showOnDemandPresetPicker = false
+                            }
+                        }
+                    }
+
+                    Text("Hinweis: Kimai und Ephe benötigen meist einen längeren ersten Start. Ephe wird aus dem Git-Repository im Container gebaut.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(20)
+            }
+            .navigationTitle("On-Demand App hinzufügen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Schließen") {
+                        showOnDemandPresetPicker = false
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 760, minHeight: 520)
+    }
+
+    private func onDemandAddOptionTile(
+        title: String,
+        iconSystemName: String,
+        summary: String,
+        meta: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 42, height: 42)
+                        Image(systemName: iconSystemName)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    Spacer()
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(3)
+                Spacer(minLength: 0)
+                Text(meta)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private func configSection(_ snapshot: DashboardSnapshot) -> some View {
         GroupBox("Reverse Proxy Configuration Preview") {
             VStack(alignment: .leading, spacing: 10) {
@@ -863,12 +1227,105 @@ struct ContentView: View {
         }
     }
 
+    private func loggingSection() -> some View {
+        let filteredLogText = filteredLogs(viewModel.appLogText, query: viewModel.logFilterQuery)
+
+        return GroupBox("Logging / Debug") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Enthält CLI-Kommandos (inkl. Exit-Code/Output) sowie Start/Stop-Ereignisse für Caddy und On-Demand-Apps.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    Button("Logs aktualisieren") {
+                        viewModel.refreshLogs()
+                    }
+                    .disabled(viewModel.isRefreshingLogs)
+
+                    Button("Logs leeren", role: .destructive) {
+                        viewModel.clearLogs()
+                    }
+
+                    if viewModel.isRefreshingLogs {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
+                    Spacer()
+
+                    Text(AppPaths.appLogFile.path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                HStack(spacing: 8) {
+                    TextField("Filter (z. B. app=Grafana)", text: $viewModel.logFilterQuery)
+                        .textFieldStyle(.roundedBorder)
+                    if !viewModel.logFilterQuery.isEmpty {
+                        Button("Filter löschen") {
+                            viewModel.logFilterQuery = ""
+                        }
+                    }
+                }
+
+                if filteredLogText.isEmpty {
+                    Text("Noch keine Logs vorhanden.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 16)
+                } else {
+                    TextEditor(text: .constant(filteredLogText))
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 420)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .onAppear {
+            viewModel.refreshLogs()
+        }
+    }
+
+    private func filteredLogs(_ logText: String, query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return logText }
+        let needle = trimmed.lowercased()
+        return logText
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { $0.lowercased().contains(needle) }
+            .joined(separator: "\n")
+    }
+
+    private func openLogsForOnDemandApp(named name: String, unitName: String) {
+        if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            viewModel.logFilterQuery = "app=\(name)"
+        } else if !unitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            viewModel.logFilterQuery = unitName
+        }
+        selectedTab = .logs
+        viewModel.refreshLogs()
+    }
+
     private func statusColor(_ status: FeatureStatus) -> Color {
         switch status {
         case .planned: return .gray
         case .inProgress: return .orange
         case .done: return .green
         case .blocked: return .red
+        }
+    }
+
+    private func onDemandPhaseColor(_ phase: OnDemandAppPhase) -> Color {
+        switch phase {
+        case .running:
+            return .green
+        case .starting, .stopping:
+            return .orange
+        case .error:
+            return .red
+        case .stopped:
+            return .secondary
         }
     }
 
@@ -918,6 +1375,8 @@ struct ContentView: View {
             let scheme = (port == 443 || port == 8443) ? "https" : "http"
             return URL(string: "\(scheme)://\(target.address)")
         case .manual:
+            return nil
+        case .onDemand:
             return nil
         }
     }

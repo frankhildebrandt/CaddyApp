@@ -8,6 +8,7 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 - Manage reverse proxies for `*.localhost`.
 - Make `tls internal` (AutoTLS) usable with an easier root certificate trust flow.
 - Discover workloads from Multipass and Podman and propose proxy routes.
+- Define on-demand container apps (Podman/Docker) that auto-start on first URL access and auto-stop after inactivity.
 - Monitor Caddy releases and offer updates.
 - Track implementation progress in feature documents.
 
@@ -22,6 +23,7 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 | F-050 | Caddy Release Monitoring | Done | `docs/features/050-release-monitoring.md` |
 | F-060 | Feature Progress Tracking | Done | `docs/features/060-observability-progress.md` |
 | F-070 | Menu Bar / Systray Integration | Done | `docs/features/070-menubar-systray.md` |
+| F-080 | On-Demand Container Apps (Auto Start/Stop by URL Access) | Done | `docs/features/080-on-demand-container-apps.md` |
 
 ## Workflow
 

@@ -11,6 +11,7 @@ SWIFT := swift
 SWIFT_RUN := $(SWIFT) run
 SWIFT_BUILD := $(SWIFT) build
 SWIFT_TEST := $(SWIFT) test
+AUTO_COMMIT_SCRIPT := ./scripts/auto_commit_after_build.sh
 
 .DEFAULT_GOAL := help
 
@@ -30,6 +31,7 @@ build: ## Debug-Build erstellen
 		$(APP_BUNDLE_ID) \
 		$(APP_VERSION) \
 		$(MIN_MACOS)
+	$(AUTO_COMMIT_SCRIPT)
 
 run: ## App lokal starten
 	$(SWIFT_RUN) --scratch-path $(SWIFT_SCRATCH)
@@ -45,6 +47,7 @@ release: ## Release-Build erstellen
 		$(APP_BUNDLE_ID) \
 		$(APP_VERSION) \
 		$(MIN_MACOS)
+	$(AUTO_COMMIT_SCRIPT)
 
 icon: ## App-Icon (.icns) aus SVG erzeugen
 	./scripts/generate_app_icon.sh

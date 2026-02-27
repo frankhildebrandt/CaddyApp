@@ -5,6 +5,13 @@ struct CaddyDesktopApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
     @StateObject private var viewModel = DashboardViewModel.bootstrap()
 
+    init() {
+        Task {
+            await OnDemandAppsService.shared.startIfNeeded()
+            await OnDemandAppsService.shared.reloadConfiguration()
+        }
+    }
+
     var body: some Scene {
         WindowGroup("CaddyApp", id: AppWindowController.mainWindowID) {
             ContentView(viewModel: viewModel)

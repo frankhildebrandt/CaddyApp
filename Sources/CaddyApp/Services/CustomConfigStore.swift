@@ -26,6 +26,7 @@ struct CustomConfigStore {
     private func sanitized(_ settings: CustomConfigSettings) -> CustomConfigSettings {
         CustomConfigSettings(
             customRoutes: settings.customRoutes,
+            onDemandApps: settings.onDemandApps,
             additionalCaddyfileConfig: settings.additionalCaddyfileConfig
         )
     }

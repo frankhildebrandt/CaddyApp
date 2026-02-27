@@ -2,7 +2,6 @@ import Foundation
 
 struct CaddyConfigLifecycleService {
     private let shell = ShellCommandRunner()
-    private let privilegedRunner = PrivilegedCommandRunner()
     private let defaultAdminEndpoint = "localhost:2019"
     private let fileManager = FileManager.default
 
@@ -110,69 +109,13 @@ struct CaddyConfigLifecycleService {
             )
         }
 
-        let privilegedStart = privilegedRunner.runWithAdministratorPrivileges(
-            privilegedShellCommand("caddy start --config '\(escape(preview.caddyfilePath))' --adapter caddyfile"),
-            prompt: "CaddyApp needs administrator permission to start Caddy."
-        )
-        let privilegedOutput = combinedOutput(from: privilegedStart)
-        if privilegedStart.isSuccess {
-            return ConfigOperationResult(
-                kind: .start,
-                succeeded: true,
-                message: "Caddy start succeeded via macOS administrator dialog",
-                output: privilegedOutput,
-                performedAt: Date()
-            )
-        }
-
-        if isAuthorizationCancelled(privilegedOutput) {
-            return ConfigOperationResult(
-                kind: .start,
-                succeeded: false,
-                message: "Caddy start cancelled in macOS administrator dialog",
-                output: privilegedOutput,
-                performedAt: Date()
-            )
-        }
-
         let startResult = shell.runShell("caddy start --config '\(escape(preview.caddyfilePath))' --adapter caddyfile")
-        let startOutput = combinedOutput(from: startResult)
-        return ConfigOperationResult(
-            kind: .start,
-            succeeded: startResult.isSuccess,
-            message: startResult.isSuccess
-                ? "Caddy start succeeded (after macOS administrator dialog attempt)"
-                : "Caddy start failed (macOS administrator dialog + direct start)",
-            output: [privilegedOutput, startOutput].filter { !$0.isEmpty }.joined(separator: "\n\n--- direct fallback ---\n\n"),
-            performedAt: Date()
-        )
+        return mapResult(kind: .start, baseMessage: "Caddy start", result: startResult)
     }
 
     func stop() -> ConfigOperationResult {
         let stopResult = shell.runShell("caddy stop")
-        if stopResult.isSuccess {
-            return mapResult(kind: .stop, baseMessage: "Caddy stop", result: stopResult)
-        }
-
-        let stopOutput = combinedOutput(from: stopResult)
-        guard shouldRetryWithPrivileges(stopOutput) else {
-            return mapResult(kind: .stop, baseMessage: "Caddy stop", result: stopResult)
-        }
-
-        let privilegedStop = privilegedRunner.runWithAdministratorPrivileges(
-            privilegedShellCommand("caddy stop"),
-            prompt: "CaddyApp needs administrator permission to stop Caddy."
-        )
-        let privilegedOutput = combinedOutput(from: privilegedStop)
-        return ConfigOperationResult(
-            kind: .stop,
-            succeeded: privilegedStop.isSuccess,
-            message: privilegedStop.isSuccess
-                ? "Caddy stop succeeded via macOS administrator dialog"
-                : "Caddy stop failed (including privileged retry)",
-            output: [stopOutput, privilegedOutput].filter { !$0.isEmpty }.joined(separator: "\n\n--- privileged retry ---\n\n"),
-            performedAt: Date()
-        )
+        return mapResult(kind: .stop, baseMessage: "Caddy stop", result: stopResult)
     }
 
     private func performReloadCommand(preview: CaddyConfigPreview) -> ConfigOperationResult {
@@ -182,35 +125,15 @@ struct CaddyConfigLifecycleService {
         }
 
         let reloadOutput = combinedOutput(from: reloadResult)
-        if shouldRetryWithPrivileges(reloadOutput) {
-            let privilegedReload = privilegedRunner.runWithAdministratorPrivileges(
-                privilegedShellCommand("caddy reload --config '\(escape(preview.caddyfilePath))' --adapter caddyfile"),
-                prompt: "CaddyApp needs administrator permission to reload Caddy."
-            )
-            let privilegedOutput = combinedOutput(from: privilegedReload)
-            return ConfigOperationResult(
-                kind: .reload,
-                succeeded: privilegedReload.isSuccess,
-                message: privilegedReload.isSuccess
-                    ? "Caddy reload succeeded via macOS administrator dialog"
-                    : "Caddy reload failed (including privileged retry)",
-                output: [reloadOutput, privilegedOutput].filter { !$0.isEmpty }.joined(separator: "\n\n--- privileged retry ---\n\n"),
-                performedAt: Date()
-            )
-        }
-
         if shouldFallbackToStart(reloadOutput) {
-            let privilegedStart = privilegedRunner.runWithAdministratorPrivileges(
-                privilegedShellCommand("caddy start --config '\(escape(preview.caddyfilePath))' --adapter caddyfile"),
-                prompt: "CaddyApp needs administrator permission to start Caddy."
-            )
-            let privilegedStartOutput = combinedOutput(from: privilegedStart)
-            if privilegedStart.isSuccess {
+            let startResult = shell.runShell("caddy start --config '\(escape(preview.caddyfilePath))' --adapter caddyfile")
+            let startOutput = combinedOutput(from: startResult)
+            if startResult.isSuccess {
                 return ConfigOperationResult(
                     kind: .reload,
                     succeeded: true,
-                    message: "Caddy was not running; started a new instance via macOS administrator dialog",
-                    output: [reloadOutput, privilegedStartOutput]
+                    message: "Caddy was not running; started a new instance",
+                    output: [reloadOutput, startOutput]
                         .filter { !$0.isEmpty }
                         .joined(separator: "\n\n--- fallback start ---\n\n"),
                     performedAt: Date()
@@ -219,8 +142,8 @@ struct CaddyConfigLifecycleService {
             return ConfigOperationResult(
                 kind: .reload,
                 succeeded: false,
-                message: "Caddy reload failed and fallback start via macOS administrator dialog also failed",
-                output: [reloadOutput, privilegedStartOutput].filter { !$0.isEmpty }.joined(separator: "\n\n--- fallback start ---\n\n"),
+                message: "Caddy reload failed and fallback start also failed",
+                output: [reloadOutput, startOutput].filter { !$0.isEmpty }.joined(separator: "\n\n--- fallback start ---\n\n"),
                 performedAt: Date()
             )
         }
@@ -306,28 +229,6 @@ struct CaddyConfigLifecycleService {
         return lowered.contains("connection refused")
             || lowered.contains("failed to connect to admin endpoint")
             || lowered.contains("sending configuration to instance")
-    }
-
-    private func shouldRetryWithPrivileges(_ output: String) -> Bool {
-        let lowered = output.lowercased()
-        return lowered.contains("permission denied")
-            || lowered.contains("operation not permitted")
-            || lowered.contains("listen tcp")
-            || lowered.contains("bind:")
-            || lowered.contains("password")
-            || lowered.contains("sudo")
-    }
-
-    private func isAuthorizationCancelled(_ output: String) -> Bool {
-        let lowered = output.lowercased()
-        return lowered.contains("user canceled")
-            || lowered.contains("applescript error -128")
-            || lowered.contains("error -128")
-    }
-
-    private func privilegedShellCommand(_ command: String) -> String {
-        let managedBin = AppPaths.managedBinDirectory.path.replacingOccurrences(of: "'", with: "'\\''")
-        return "export PATH='\(managedBin)':$PATH; \(command)"
     }
 
     private func escape(_ path: String) -> String {

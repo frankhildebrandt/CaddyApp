@@ -9,11 +9,19 @@ actor DashboardService {
     private let releaseService = CaddyReleaseMonitorService()
     private let bootstrapService = EnvironmentBootstrapService()
     private let configLifecycleService = CaddyConfigLifecycleService()
+    private let onDemandAppsService = OnDemandAppsService.shared
 
     func loadSnapshot() async -> DashboardSnapshot {
+        await onDemandAppsService.startIfNeeded()
+        await onDemandAppsService.reloadConfiguration()
         let runtimeTargets = runtimeService.discoverTargets()
         let customConfig = customConfigStore.load()
-        let routes = configService.routes(runtimeTargets: runtimeTargets, customRoutes: customConfig.customRoutes)
+        let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let routes = configService.routes(
+            runtimeTargets: runtimeTargets,
+            customRoutes: customConfig.customRoutes,
+            onDemandApps: customConfig.onDemandApps
+        )
         var caddyInstall = installService.loadStatus()
         var tlsStatus = tlsService.status()
         let autoSetupReport = bootstrapService.runAutoSetupIfNeeded(caddyInstall: caddyInstall, tlsStatus: tlsStatus)
@@ -51,6 +59,7 @@ actor DashboardService {
             tlsStatus: tlsStatus,
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
+            onDemandAppStatuses: onDemandAppStatuses,
             routes: routes,
             warnings: warnings,
             autoSetupReport: autoSetupReport
@@ -58,9 +67,15 @@ actor DashboardService {
     }
 
     func refreshRuntimeDiscovery(on snapshot: DashboardSnapshot) async -> DashboardSnapshot {
+        await onDemandAppsService.reloadConfiguration()
         let runtimeTargets = runtimeService.discoverTargets()
         let customConfig = customConfigStore.load()
-        let routes = configService.routes(runtimeTargets: runtimeTargets, customRoutes: customConfig.customRoutes)
+        let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let routes = configService.routes(
+            runtimeTargets: runtimeTargets,
+            customRoutes: customConfig.customRoutes,
+            onDemandApps: customConfig.onDemandApps
+        )
         let configPreview = configService.preview(
             for: routes,
             additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig
@@ -83,6 +98,7 @@ actor DashboardService {
             tlsStatus: snapshot.tlsStatus,
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
+            onDemandAppStatuses: onDemandAppStatuses,
             routes: routes,
             warnings: warnings,
             autoSetupReport: snapshot.autoSetupReport

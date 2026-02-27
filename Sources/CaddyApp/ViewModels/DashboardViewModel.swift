@@ -16,16 +16,23 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var lastTrustOperation: SetupOperationResult?
     @Published private(set) var lastCaddyUpdateOperation: CaddyUpdateOperationResult?
     @Published var customRoutes: [CustomRouteDraft]
+    @Published var onDemandApps: [OnDemandAppDraft]
     @Published var customAdditionalCaddyfileConfig: String
     @Published private(set) var isSavingCustomConfig = false
     @Published private(set) var lastCustomConfigSaveResult: CustomConfigSaveResult?
     @Published private(set) var customConfigValidationError: String?
+    @Published private(set) var appLogText: String = ""
+    @Published private(set) var isRefreshingLogs = false
+    @Published var logFilterQuery: String = ""
+    @Published private(set) var isChangingOnDemandAppRuntime = false
+    @Published private(set) var lastOnDemandAppControlResult: OnDemandAppControlResult?
 
     private let dashboardService: DashboardService
     private let configLifecycleService: CaddyConfigLifecycleService
     private let tlsService: LocalhostTLSService
     private let caddyInstallationService: CaddyInstallationService
     private let customConfigStore: CustomConfigStore
+    private let onDemandAppsService: OnDemandAppsService
     private var hasLoaded = false
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
@@ -36,7 +43,8 @@ final class DashboardViewModel: ObservableObject {
         configLifecycleService: CaddyConfigLifecycleService = CaddyConfigLifecycleService(),
         tlsService: LocalhostTLSService = LocalhostTLSService(),
         caddyInstallationService: CaddyInstallationService = CaddyInstallationService(),
-        customConfigStore: CustomConfigStore = CustomConfigStore()
+        customConfigStore: CustomConfigStore = CustomConfigStore(),
+        onDemandAppsService: OnDemandAppsService = .shared
     ) {
         let initialCustomConfig = customConfigStore.load()
         self.dashboardService = dashboardService
@@ -44,7 +52,9 @@ final class DashboardViewModel: ObservableObject {
         self.tlsService = tlsService
         self.caddyInstallationService = caddyInstallationService
         self.customConfigStore = customConfigStore
+        self.onDemandAppsService = onDemandAppsService
         self.customRoutes = initialCustomConfig.customRoutes
+        self.onDemandApps = initialCustomConfig.onDemandApps
         self.customAdditionalCaddyfileConfig = initialCustomConfig.additionalCaddyfileConfig
     }
 
@@ -72,6 +82,7 @@ final class DashboardViewModel: ObservableObject {
 
         Task { [weak self] in
             guard let self else { return }
+            self.refreshLogs()
             let previousSnapshot = self.snapshot
             let wasInitialLoad = !self.hasLoaded
             let snapshot = await dashboardService.loadSnapshot()
@@ -104,6 +115,7 @@ final class DashboardViewModel: ObservableObject {
         guard let snapshot else { return }
         let current = snapshot.caddyRuntimeStatus.isRunning
         guard current != shouldRun else { return }
+        AppLogService.logEvent("Caddy runtime requested: \(shouldRun ? "start" : "stop")")
 
         isChangingCaddyRuntime = true
         Task { [weak self] in
@@ -156,6 +168,44 @@ final class DashboardViewModel: ObservableObject {
         customRoutes.removeAll { $0.id == id }
     }
 
+    func addOnDemandApp() {
+        onDemandApps.append(
+            OnDemandAppDraft(
+                name: "",
+                runtime: .podman,
+                unitKind: .container,
+                unitName: "",
+                host: "",
+                targetPort: 3000,
+                idleTimeoutSeconds: 600,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "",
+                healthPath: "/"
+            )
+        )
+    }
+
+    func addOnDemandPreset(_ preset: OnDemandAppPreset) {
+        var app = preset.app
+        let existingHosts = Set(onDemandApps.map { $0.host.lowercased() })
+        if existingHosts.contains(app.host.lowercased()) {
+            let baseHost = app.host.replacingOccurrences(of: ".localhost", with: "")
+            var suffix = 2
+            while existingHosts.contains("\(baseHost)\(suffix).localhost".lowercased()) {
+                suffix += 1
+            }
+            app.host = "\(baseHost)\(suffix).localhost"
+            app.unitName = "\(app.unitName)-\(suffix)"
+            app.name = "\(app.name) \(suffix)"
+        }
+        onDemandApps.append(app)
+    }
+
+    func removeOnDemandApp(id: OnDemandAppDraft.ID) {
+        onDemandApps.removeAll { $0.id == id }
+    }
+
     func saveCustomConfig() {
         guard !isSavingCustomConfig else { return }
 
@@ -167,6 +217,16 @@ final class DashboardViewModel: ObservableObject {
                 enabled: route.enabled
             )
         }
+        let normalizedOnDemandApps = onDemandApps.map { app in
+            var normalized = app
+            normalized.name = app.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.host = app.host.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.unitName = app.unitName.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.targetHost = app.targetHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.runArguments = app.runArguments.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalized.healthPath = app.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized
+        }
 
         if let validationError = validateCustomConfig(routes: normalizedRoutes) {
             customConfigValidationError = validationError
@@ -177,12 +237,23 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
+        if let validationError = validateOnDemandApps(normalizedOnDemandApps, existingHosts: normalizedRoutes.map(\.host)) {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: validationError,
+                performedAt: Date()
+            )
+            return
+        }
 
         customRoutes = normalizedRoutes
+        onDemandApps = normalizedOnDemandApps
         customConfigValidationError = nil
         isSavingCustomConfig = true
         let settings = CustomConfigSettings(
             customRoutes: normalizedRoutes,
+            onDemandApps: normalizedOnDemandApps,
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
 
@@ -205,6 +276,48 @@ final class DashboardViewModel: ObservableObject {
                 )
                 self.isSavingCustomConfig = false
             }
+        }
+    }
+
+    func refreshLogs() {
+        guard !isRefreshingLogs else { return }
+        isRefreshingLogs = true
+        Task { [weak self] in
+            guard let self else { return }
+            let text = AppLogService.readLog()
+            self.appLogText = text
+            self.isRefreshingLogs = false
+        }
+    }
+
+    func clearLogs() {
+        do {
+            try AppLogService.clearLog()
+            appLogText = ""
+            AppLogService.logEvent("Log file cleared by user")
+            refreshLogs()
+        } catch {
+            lastError = "Logs konnten nicht gelöscht werden: \(error.localizedDescription)"
+            AppLogService.logError(lastError ?? "Log clear failed")
+        }
+    }
+
+    func setOnDemandAppRunning(appID: UUID, shouldRun: Bool) {
+        guard !isChangingOnDemandAppRuntime else { return }
+        isChangingOnDemandAppRuntime = true
+        AppLogService.logEvent("On-demand runtime requested manually: \(shouldRun ? "start" : "stop") appID=\(appID.uuidString)")
+        Task { [weak self] in
+            guard let self else { return }
+            let result = shouldRun
+                ? await self.onDemandAppsService.startApp(id: appID)
+                : await self.onDemandAppsService.stopApp(id: appID)
+            self.lastOnDemandAppControlResult = result
+            self.isChangingOnDemandAppRuntime = false
+            let updatedSnapshot = await self.dashboardService.loadSnapshot()
+            self.snapshot = updatedSnapshot
+            self.hasLoaded = true
+            self.startRuntimePollingIfNeeded()
+            self.refreshLogs()
         }
     }
 
@@ -265,6 +378,7 @@ final class DashboardViewModel: ObservableObject {
 
         if isInitialLoad {
             if !currentSnapshot.caddyRuntimeStatus.isRunning {
+                AppLogService.logEvent("Caddy auto-start on initial load (runtime not running)")
                 isChangingCaddyRuntime = true
                 let startResult = configLifecycleService.start(preview: currentSnapshot.configPreview)
                 isChangingCaddyRuntime = false
@@ -336,6 +450,49 @@ final class DashboardViewModel: ObservableObject {
             .sorted()
         if let duplicateHost = duplicateHosts.first {
             return "Doppelter Host in Custom Routes: \(duplicateHost)"
+        }
+
+        return nil
+    }
+
+    private func validateOnDemandApps(_ apps: [OnDemandAppDraft], existingHosts: [String]) -> String? {
+        let routeHostSet = Set(existingHosts.map { $0.lowercased() })
+
+        for (index, app) in apps.enumerated() {
+            let row = index + 1
+            if app.name.isEmpty { return "On-Demand App \(row): Name darf nicht leer sein." }
+            if app.host.isEmpty { return "On-Demand App \(row): Host darf nicht leer sein." }
+            if app.unitName.isEmpty { return "On-Demand App \(row): Container/Pod Name darf nicht leer sein." }
+            if app.targetHost.isEmpty { return "On-Demand App \(row): Target Host darf nicht leer sein." }
+            if app.targetPort <= 0 || app.targetPort > 65535 { return "On-Demand App \(row): Target Port ist ungültig." }
+            if app.idleTimeoutSeconds < 15 { return "On-Demand App \(row): Idle Timeout muss mindestens 15 Sekunden sein." }
+            if app.host.contains(where: \.isWhitespace) { return "On-Demand App \(row): Host darf keine Leerzeichen enthalten." }
+            if app.targetHost.contains(where: \.isWhitespace) { return "On-Demand App \(row): Target Host darf keine Leerzeichen enthalten." }
+            if app.startMode == .runCommand && app.runArguments.isEmpty {
+                return "On-Demand App \(row): Run Arguments dürfen im Modus 'Run Command' nicht leer sein."
+            }
+            if app.runtime == .docker && app.unitKind == .pod {
+                return "On-Demand App \(row): Docker unterstützt hier keine Pods. Bitte Container wählen oder Podman nutzen."
+            }
+            if routeHostSet.contains(app.host.lowercased()) {
+                return "On-Demand App \(row): Host kollidiert mit Custom Route: \(app.host)"
+            }
+        }
+
+        let duplicateHosts = Dictionary(grouping: apps.map { $0.host.lowercased() }) { $0 }
+            .filter { !$0.key.isEmpty && $0.value.count > 1 }
+            .map(\.key)
+            .sorted()
+        if let duplicateHost = duplicateHosts.first {
+            return "Doppelter Host in On-Demand Apps: \(duplicateHost)"
+        }
+
+        let duplicateUnits = Dictionary(grouping: apps.map { "\($0.runtime.rawValue):\($0.unitKind.rawValue):\($0.unitName.lowercased())" }) { $0 }
+            .filter { !$0.key.hasSuffix(":") && $0.value.count > 1 }
+            .map(\.key)
+            .sorted()
+        if let duplicateUnit = duplicateUnits.first {
+            return "Doppelter Runtime/Unit-Name in On-Demand Apps: \(duplicateUnit)"
         }
 
         return nil

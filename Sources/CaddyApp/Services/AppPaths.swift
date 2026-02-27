@@ -9,4 +9,7 @@ enum AppPaths {
 
     static let managedCaddyBinary = managedBinDirectory
         .appendingPathComponent("caddy", isDirectory: false)
+
+    static let appLogFile = appSupportDirectory
+        .appendingPathComponent("caddyapp.log", isDirectory: false)
 }

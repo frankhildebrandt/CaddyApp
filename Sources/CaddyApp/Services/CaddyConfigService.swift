@@ -1,8 +1,14 @@
 import Foundation
 
 struct CaddyConfigService {
-    func routes(runtimeTargets: [RuntimeTarget], customRoutes: [CustomRouteDraft]) -> [ProxyRoute] {
-        customRoutes.map { $0.asProxyRoute() } + multipassRoutes(from: runtimeTargets)
+    func routes(
+        runtimeTargets: [RuntimeTarget],
+        customRoutes: [CustomRouteDraft],
+        onDemandApps: [OnDemandAppDraft]
+    ) -> [ProxyRoute] {
+        customRoutes.map { $0.asProxyRoute() }
+            + onDemandApps.map { $0.asProxyRoute(gatewayPort: OnDemandAppsService.gatewayPort) }
+            + multipassRoutes(from: runtimeTargets)
     }
 
     func preview(for routes: [ProxyRoute], additionalCaddyfileConfig: String) -> CaddyConfigPreview {

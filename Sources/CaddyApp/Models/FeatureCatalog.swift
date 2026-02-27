@@ -50,6 +50,13 @@ enum FeatureCatalog {
             status: .done,
             summary: "Keep the app available in the macOS menu bar and reopen the dashboard from the tray.",
             documentPath: "docs/features/070-menubar-systray.md"
+        ),
+        FeatureItem(
+            id: "F-080",
+            title: "On-Demand Container Apps",
+            status: .done,
+            summary: "Define Docker/Podman apps that auto-start on URL access and stop after inactivity.",
+            documentPath: "docs/features/080-on-demand-container-apps.md"
         )
     ]
 }

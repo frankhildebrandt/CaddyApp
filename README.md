@@ -40,6 +40,23 @@ make check
 
 `make build` erzeugt ein vollstaendiges macOS-App-Bundle unter `_build/debug/CaddyApp.app` (Release: `_build/release/CaddyApp.app`).
 
+## Dokumentation
+
+- Projekt-Dokumentation: `docs/PROJECT.md`
+- Feature-Dokumente: `docs/features/`
+- Agent-Regeln: `AGENTS.md`
+
+## Automatisierung
+
+`make build` und `make release` fuehren nach erfolgreichem Build automatisch einen kurzen Git-Commit aus, wenn Aenderungen vorhanden sind.
+
+- Standard: Auto-Commit aktiv
+- Opt-out: `CADDYAPP_SKIP_AUTOCOMMIT=1 make build`
+
+Bei Feature-Branches (`feat/...`, `feature/...`) wird vor dem Auto-Commit automatisch ein Feature-Dokument unter `docs/features/` angelegt, falls noch keines geaendert wurde.
+
+- Force-Flag: `CADDYAPP_FEATURE=1 make build`
+
 ## Next engineering steps
 
 1. Harden config apply flow with confirmations, backups, and rollback.

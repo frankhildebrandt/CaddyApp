@@ -57,6 +57,7 @@ struct CustomRouteDraft: Identifiable, Hashable, Codable {
 
 struct CustomConfigSettings: Codable {
     var customRoutes: [CustomRouteDraft]
+    var onDemandApps: [OnDemandAppDraft]
     var additionalCaddyfileConfig: String
 
     static let `default` = CustomConfigSettings(
@@ -64,16 +65,232 @@ struct CustomConfigSettings: Codable {
             CustomRouteDraft(host: "app.localhost", upstream: "127.0.0.1:3000", enabled: true),
             CustomRouteDraft(host: "api.localhost", upstream: "127.0.0.1:8080", enabled: true)
         ],
+        onDemandApps: [],
         additionalCaddyfileConfig: ""
     )
 }
 
 enum RuntimeSource: String, CaseIterable {
     case manual
+    case onDemand = "on_demand"
     case multipass
     case podman
 
+    var label: String {
+        switch self {
+        case .onDemand:
+            return "On-Demand"
+        default:
+            return rawValue.capitalized
+        }
+    }
+}
+
+enum ContainerRuntimeKind: String, Codable, CaseIterable, Hashable {
+    case podman
+    case docker
+
     var label: String { rawValue.capitalized }
+}
+
+enum ContainerUnitKind: String, Codable, CaseIterable, Hashable {
+    case container
+    case pod
+
+    var label: String { rawValue.capitalized }
+}
+
+enum OnDemandStartMode: String, Codable, CaseIterable, Hashable {
+    case startExisting = "start_existing"
+    case runCommand = "run_command"
+
+    var label: String {
+        switch self {
+        case .startExisting: return "Start Existing"
+        case .runCommand: return "Run Command"
+        }
+    }
+}
+
+struct OnDemandAppDraft: Identifiable, Hashable, Codable {
+    var id: UUID
+    var name: String
+    var runtime: ContainerRuntimeKind
+    var unitKind: ContainerUnitKind
+    var unitName: String
+    var host: String
+    var targetHost: String
+    var targetPort: Int
+    var idleTimeoutSeconds: Int
+    var enabled: Bool
+    var startMode: OnDemandStartMode
+    var runArguments: String
+    var healthPath: String
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        runtime: ContainerRuntimeKind = .podman,
+        unitKind: ContainerUnitKind = .container,
+        unitName: String,
+        host: String,
+        targetHost: String = "127.0.0.1",
+        targetPort: Int,
+        idleTimeoutSeconds: Int = 600,
+        enabled: Bool = true,
+        startMode: OnDemandStartMode = .runCommand,
+        runArguments: String,
+        healthPath: String = "/"
+    ) {
+        self.id = id
+        self.name = name
+        self.runtime = runtime
+        self.unitKind = unitKind
+        self.unitName = unitName
+        self.host = host
+        self.targetHost = targetHost
+        self.targetPort = targetPort
+        self.idleTimeoutSeconds = idleTimeoutSeconds
+        self.enabled = enabled
+        self.startMode = startMode
+        self.runArguments = runArguments
+        self.healthPath = healthPath
+    }
+
+    func asProxyRoute(gatewayPort: UInt16) -> ProxyRoute {
+        ProxyRoute(
+            host: host,
+            upstream: "127.0.0.1:\(gatewayPort)",
+            source: .onDemand,
+            enabled: enabled
+        )
+    }
+}
+
+enum OnDemandAppPhase: String, Codable {
+    case stopped
+    case starting
+    case running
+    case stopping
+    case error
+
+    var label: String { rawValue.capitalized }
+}
+
+struct OnDemandAppRuntimeStatus: Identifiable, Hashable {
+    var id: UUID
+    var appID: UUID
+    var name: String
+    var host: String
+    var runtime: ContainerRuntimeKind
+    var unitKind: ContainerUnitKind
+    var phase: OnDemandAppPhase
+    var enabled: Bool
+    var idleTimeoutSeconds: Int
+    var lastAccessAt: Date?
+    var lastActionAt: Date?
+    var lastError: String?
+}
+
+struct OnDemandAppControlResult {
+    var succeeded: Bool
+    var message: String
+    var performedAt: Date
+}
+
+struct OnDemandAppPreset: Identifiable, Hashable {
+    var id: String { key }
+    var key: String
+    var title: String
+    var iconSystemName: String
+    var summary: String
+    var app: OnDemandAppDraft
+    var notes: String
+}
+
+enum OnDemandAppPresetCatalog {
+    static let all: [OnDemandAppPreset] = [
+        OnDemandAppPreset(
+            key: "loki",
+            title: "Loki",
+            iconSystemName: "text.alignleft",
+            summary: "Log aggregation backend (Grafana Loki) on port 3100.",
+            app: OnDemandAppDraft(
+                name: "Loki",
+                runtime: .podman,
+                unitKind: .container,
+                unitName: "caddyapp-loki",
+                host: "loki.localhost",
+                targetPort: 3100,
+                idleTimeoutSeconds: 600,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "run -d --name caddyapp-loki -p 3100:3100 grafana/loki:latest",
+                healthPath: "/ready"
+            ),
+            notes: "Starts Loki on port 3100."
+        ),
+        OnDemandAppPreset(
+            key: "grafana",
+            title: "Grafana",
+            iconSystemName: "chart.xyaxis.line",
+            summary: "Grafana OSS dashboard UI on port 3000.",
+            app: OnDemandAppDraft(
+                name: "Grafana",
+                runtime: .podman,
+                unitKind: .container,
+                unitName: "caddyapp-grafana",
+                host: "grafana.localhost",
+                targetPort: 3000,
+                idleTimeoutSeconds: 900,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "run -d --name caddyapp-grafana -p 3000:3000 grafana/grafana-oss:latest",
+                healthPath: "/login"
+            ),
+            notes: "Grafana OSS; add volumes/env vars after inserting the preset if needed."
+        ),
+        OnDemandAppPreset(
+            key: "kimai",
+            title: "Kimai",
+            iconSystemName: "clock.badge.checkmark",
+            summary: "Time tracking app (usually needs DB/env setup).",
+            app: OnDemandAppDraft(
+                name: "Kimai",
+                runtime: .podman,
+                unitKind: .container,
+                unitName: "caddyapp-kimai",
+                host: "kimai.localhost",
+                targetPort: 8001,
+                idleTimeoutSeconds: 900,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "run -d --name caddyapp-kimai -p 8001:8001 kimai/kimai2:apache",
+                healthPath: "/"
+            ),
+            notes: "Kimai often needs database/env configuration. Edit run arguments before first use."
+        ),
+        OnDemandAppPreset(
+            key: "ephe",
+            title: "Ephe",
+            iconSystemName: "doc.text.magnifyingglass",
+            summary: "Builds and serves Ephe from source in a Node container on port 3000 (first start is slower).",
+            app: OnDemandAppDraft(
+                name: "Ephe",
+                runtime: .podman,
+                unitKind: .container,
+                unitName: "caddyapp-ephe",
+                host: "ephe.localhost",
+                targetPort: 3000,
+                idleTimeoutSeconds: 900,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "run -d --name caddyapp-ephe -p 3000:3000 node:22-alpine sh -lc \"apk add --no-cache git && npm i -g pnpm && if [ ! -d /opt/ephe ]; then git clone --depth=1 https://github.com/unvalley/ephe.git /opt/ephe; fi && cd /opt/ephe && pnpm install && pnpm run build && pnpm exec vite preview --host 0.0.0.0 --port 3000 --strictPort\"",
+                healthPath: "/"
+            ),
+            notes: "No official container image detected. Preset builds/serves Ephe inside a Node container via git clone + pnpm (first startup can take longer)."
+        )
+    ]
 }
 
 struct RuntimeTarget: Identifiable, Hashable {
@@ -204,6 +421,7 @@ struct DashboardSnapshot {
     var tlsStatus: TLSStatus
     var configPreview: CaddyConfigPreview
     var runtimeTargets: [RuntimeTarget]
+    var onDemandAppStatuses: [OnDemandAppRuntimeStatus]
     var routes: [ProxyRoute]
     var warnings: [String]
     var autoSetupReport: AutoSetupReport
