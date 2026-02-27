@@ -329,10 +329,10 @@ enum OnDemandAppPresetCatalog {
                 idleTimeoutSeconds: 900,
                 enabled: true,
                 startMode: .runCommand,
-                runArguments: "pod create --name caddyapp-kimai -p 8001:8001 && run -d --pod caddyapp-kimai --name caddyapp-kimai-db -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11 && run -d --pod caddyapp-kimai --name caddyapp-kimai-app -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4' kimai/kimai2:apache",
+                runArguments: "pod create --name caddyapp-kimai -p 8001:8001 && run -d --pod caddyapp-kimai --name caddyapp-kimai-db --restart=unless-stopped -e MARIADB_DATABASE=kimai -e MARIADB_USER=kimai -e MARIADB_PASSWORD=kimai -e MARIADB_ROOT_PASSWORD=kimai mariadb:11 && run --rm --pod caddyapp-kimai --name caddyapp-kimai-db-wait mariadb:11 sh -lc 'until mariadb-admin ping -h 127.0.0.1 -u root -pkimai --silent; do sleep 2; done' && run -d --pod caddyapp-kimai --name caddyapp-kimai-app --restart=unless-stopped -e ADMINMAIL=admin@kimai.localhost -e ADMINPASS=kimaiadmin -e DATABASE_URL='mysql://kimai:kimai@127.0.0.1:3306/kimai?charset=utf8mb4&serverVersion=11.4.2-MariaDB' kimai/kimai2:apache",
                 healthPath: "/"
             ),
-            notes: "Podman preset creates a pod with Kimai + MariaDB on first start. Default credentials are for local dev only; change env vars before productive use."
+            notes: "Podman preset creates a pod with Kimai + MariaDB, waits for DB readiness, and sets restart policies. Default credentials are for local dev only; change env vars before productive use."
         ),
         OnDemandAppPreset(
             key: "ephe",

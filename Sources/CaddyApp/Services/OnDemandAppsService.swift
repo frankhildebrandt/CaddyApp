@@ -573,7 +573,7 @@ actor OnDemandAppsService {
             return 180
         }
         if name.contains("kimai") || unitName.contains("kimai") {
-            return 120
+            return 240
         }
         if name.contains("penpot") || unitName.contains("penpot") {
             return 180
