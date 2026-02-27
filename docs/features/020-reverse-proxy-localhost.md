@@ -32,6 +32,7 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 
 - Current preview uses a fixed path target in `~/Library/Application Support/CaddyApp/Caddyfile`.
 - Caddyfile generation creates explicit host site blocks only, so certificate issuance is host-specific per subdomain.
+- For hosts ending in `.localhost`, Caddyfile generation adds additional aliases in the form `<host-prefix>.<mac-interface-ip>.traefik.me` for active macOS IPv4 interfaces.
 - Next step is a config writer plus `caddy validate` and `caddy reload` integration.
 - `Validate` and `Reload` now write the current preview to disk first to avoid missing-file errors on first use.
 - `Reload` falls back to `caddy start` when no running Caddy instance is listening on the admin endpoint.
@@ -47,3 +48,4 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - 2026-02-26: Added automatic Caddy startup on app launch and auto-reload on valid generated config changes.
 - 2026-02-26: Added manual reload confirmation and rollback-safe config apply flow (backup, validate, restore on failure).
 - 2026-02-27: Removed global `*.localhost` placeholder block so each configured subdomain receives its own TLS certificate (`tls internal`).
+- 2026-02-27: Added automatic `traefik.me` host aliases for active macOS interface IPv4 addresses on every `*.localhost` route.

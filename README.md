@@ -10,6 +10,7 @@ Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server w
 - Automatic Caddy bootstrap install attempt (Homebrew first, direct download fallback) when missing
 - Caddy release metadata lookup (GitHub API)
 - Host-specific `*.localhost` reverse proxy Caddyfile preview with `tls internal` (no global wildcard site block)
+- For `*.localhost` hosts, generated Caddyfile also adds `*.traefik.me` aliases for active macOS interface IPv4 addresses
 - `Validate` / `Reload` automatically persist the current preview before executing Caddy commands
 - `Reload Caddy` falls back to `caddy start` if no Caddy instance is currently running
 - `Reload Caddy` retries via the macOS administrator dialog when elevated rights are required (no hidden CLI password prompt)

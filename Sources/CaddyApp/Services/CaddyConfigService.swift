@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 struct CaddyConfigService {
@@ -29,8 +30,10 @@ struct CaddyConfigService {
         lines.append("}")
         lines.append("")
 
+        let interfaceIPv4Addresses = macInterfaceIPv4Addresses()
         for route in routes {
-            lines.append("\(route.host) {")
+            let siteHosts = siteHosts(for: route.host, interfaceIPv4Addresses: interfaceIPv4Addresses)
+            lines.append("\(siteHosts.joined(separator: ", ")) {")
             lines.append("    tls internal")
             lines.append("    reverse_proxy \(route.upstream)")
             lines.append("}")
@@ -82,5 +85,60 @@ struct CaddyConfigService {
             label = String(label.prefix(63)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         }
         return label.isEmpty ? nil : label
+    }
+
+    private func siteHosts(for host: String, interfaceIPv4Addresses: [String]) -> [String] {
+        var hosts: [String] = [host]
+        guard host.hasSuffix(".localhost"), !host.contains("*") else { return hosts }
+
+        let baseHost = String(host.dropLast(".localhost".count))
+        guard !baseHost.isEmpty else { return hosts }
+
+        for ipAddress in interfaceIPv4Addresses {
+            hosts.append("\(baseHost).\(ipAddress).traefik.me")
+        }
+
+        var seen = Set<String>()
+        return hosts.filter { seen.insert($0).inserted }
+    }
+
+    private func macInterfaceIPv4Addresses() -> [String] {
+        var addresses: [String] = []
+        var ifaddrsPointer: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrsPointer) == 0, let firstAddress = ifaddrsPointer else { return [] }
+        defer { freeifaddrs(ifaddrsPointer) }
+
+        var currentAddress: UnsafeMutablePointer<ifaddrs>? = firstAddress
+        while let address = currentAddress {
+            defer { currentAddress = address.pointee.ifa_next }
+
+            let flags = Int32(address.pointee.ifa_flags)
+            let isUp = (flags & IFF_UP) == IFF_UP
+            let isLoopback = (flags & IFF_LOOPBACK) == IFF_LOOPBACK
+            guard isUp, !isLoopback else { continue }
+
+            guard let socketAddress = address.pointee.ifa_addr, socketAddress.pointee.sa_family == UInt8(AF_INET) else {
+                continue
+            }
+
+            var ipBuffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            let getNameInfoResult = getnameinfo(
+                socketAddress,
+                socklen_t(socketAddress.pointee.sa_len),
+                &ipBuffer,
+                socklen_t(ipBuffer.count),
+                nil,
+                0,
+                NI_NUMERICHOST
+            )
+            guard getNameInfoResult == 0 else { continue }
+
+            let ipAddress = String(cString: ipBuffer)
+            guard !ipAddress.hasPrefix("169.254.") else { continue }
+
+            addresses.append(ipAddress)
+        }
+
+        return Array(Set(addresses)).sorted()
     }
 }
