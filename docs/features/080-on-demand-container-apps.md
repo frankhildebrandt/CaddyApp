@@ -63,4 +63,5 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Enabled debounced auto-save/apply for On-Demand app edits; manual save is no longer required for app draft changes.
 - 2026-02-27: Updated Kimai preset to a Podman pod setup (`kimai` + `mariadb`) so first start no longer requires manual DB wiring; added longer Kimai warm-up timeout.
 - 2026-02-27: Hardened Kimai startup preset with explicit DB-ready wait step, restart policies for app/DB containers, and MariaDB serverVersion in `DATABASE_URL`; increased Kimai warm-up timeout to 240s.
+- 2026-02-27: Fixed pod start fallback for failed multi-step `runArguments`: pod-based apps now return the original start error instead of falling back to `pod start` (which could leave only an infra container running).
 - 2026-02-27: Added Penpot preset (local catalog + YAML repository) using an official multi-service stack translated to a Podman pod (`frontend`, `backend`, `exporter`, `postgres`, `valkey`).

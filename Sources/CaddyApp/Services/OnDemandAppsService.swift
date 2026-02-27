@@ -602,6 +602,10 @@ actor OnDemandAppsService {
                 return mapped
             }
 
+            if app.unitKind == .pod {
+                return mapped
+            }
+
             // Common preset flow: first request creates via `run -d --name ...`,
             // later requests after idle-stop need `start <name>` because the container already exists.
             AppLogService.logEvent("On-demand run command failed; trying existing start fallback: app=\(app.name)")
