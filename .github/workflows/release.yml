@@ -1,0 +1,49 @@
+name: Release Build
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: swift build -c release --scratch-path _build/swiftpm
+
+      - name: Generate app icon
+        run: ./scripts/generate_app_icon.sh || echo "Icon generation skipped (no display or missing tools)"
+
+      - name: Create app bundle
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          mkdir -p _build/release
+          ./scripts/make_macos_app_bundle.sh \
+            _build/swiftpm/release/CaddyApp \
+            _build/release/CaddyApp.app \
+            CaddyApp \
+            com.frankhildebrandt.CaddyApp \
+            "$VERSION" \
+            14.0
+
+      - name: Zip app bundle
+        run: |
+          cd _build/release
+          zip -r CaddyApp.zip CaddyApp.app
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: _build/release/CaddyApp.zip
+          asset_name: CaddyApp.zip
+          asset_content_type: application/zip

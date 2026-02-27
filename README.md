@@ -51,6 +51,16 @@ make check
 - YAML Repository Feed: `docs/repository/`
 - Agent-Regeln: `AGENTS.md`
 
+## Releases
+
+Jeder GitHub Release loest automatisch einen CI-Build aus (`.github/workflows/release.yml`):
+
+1. `swift build -c release` baut das Release-Binary auf einem macOS-Runner.
+2. Das App-Bundle wird per `make_macos_app_bundle.sh` zusammengebaut.
+3. `CaddyApp.zip` wird als Download-Asset an den GitHub Release angehaengt.
+
+Die App-Version im `Info.plist` wird direkt aus dem Release-Tag uebernommen.
+
 ## Automatisierung
 
 `make build` und `make release` fuehren nach erfolgreichem Build automatisch einen kurzen Git-Commit aus, wenn Aenderungen vorhanden sind.
