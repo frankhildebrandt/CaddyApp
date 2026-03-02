@@ -14,6 +14,7 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 ## Funktionsumfang
 
 - SwiftUI-Dashboard mit Menubar/Systray-Integration
+- App-Settings via macOS-Standard `Apple-,` sowie globales App-Menue (`CaddyApp`)
 - Caddy-Erkennung inkl. Install-/Update-Flow
   - Homebrew zuerst
   - Fallback auf app-verwaltetes Binary unter
@@ -30,6 +31,9 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 - Multipass-Service-Erkennung und -Steuerung (Start/Stop/force-stop)
 - Multipass-Import aus `/etc/caddy-app.yaml`
 - YAML-basierte Web-Repositories fuer On-Demand-App-Presets
+- Gemeinsamer interner Scheduler fuer Polling-, Debounce- und Maintenance-Jobs
+- Asynchrone Command-Ausfuehrung fuer UI-relevante Aktionen (Caddy/TLS/Update/Logs)
+- Skeleton-Loading fuer Hauptzustand und Inline-Loading-Indikatoren statt Spinner-Fokus
 
 ## Voraussetzungen
 

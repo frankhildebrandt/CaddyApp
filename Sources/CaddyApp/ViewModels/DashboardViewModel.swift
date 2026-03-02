@@ -3,8 +3,10 @@ import Foundation
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
-    private static let runtimePollIntervalNanoseconds: UInt64 = 5_000_000_000
+    private static let runtimePollIntervalNanoseconds: UInt64 = 8_000_000_000
     private static let draftAutoSaveDebounceNanoseconds: UInt64 = 700_000_000
+    private static let runtimePollingJobID = "dashboard.runtime-polling"
+    private static let draftAutosaveJobID = "dashboard.draft-autosave"
 
     @Published private(set) var snapshot: DashboardSnapshot?
     @Published private(set) var isLoading = false
@@ -39,18 +41,17 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var lastRepositorySyncResult: AppRepositorySyncResult?
 
     private let dashboardService: DashboardService
-    private let configLifecycleService: CaddyConfigLifecycleService
-    private let tlsService: LocalhostTLSService
-    private let caddyInstallationService: CaddyInstallationService
+    nonisolated private let configLifecycleService: CaddyConfigLifecycleService
+    nonisolated private let tlsService: LocalhostTLSService
+    nonisolated private let caddyInstallationService: CaddyInstallationService
     private let customConfigStore: CustomConfigStore
     private let onDemandAppsService: OnDemandAppsService
     private let appRepositoryService: AppRepositoryService
-    private let shellRunner = ShellCommandRunner()
+    nonisolated private let shellRunner = ShellCommandRunner()
+    private let scheduler = InternalScheduler()
     private var hasLoaded = false
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
-    private var runtimePollingTask: Task<Void, Never>?
-    private var draftAutoSaveTask: Task<Void, Never>?
     private var hasLoadedRepositoryPresets = false
 
     init(
@@ -83,8 +84,10 @@ final class DashboardViewModel: ObservableObject {
     }
 
     deinit {
-        runtimePollingTask?.cancel()
-        draftAutoSaveTask?.cancel()
+        let ownedScheduler = scheduler
+        Task {
+            await ownedScheduler.cancelAll()
+        }
     }
 
     func refreshIfNeeded() {
@@ -145,8 +148,8 @@ final class DashboardViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             let result: ConfigOperationResult = shouldRun
-                ? self.configLifecycleService.start(preview: snapshot.configPreview)
-                : self.configLifecycleService.stop()
+                ? await self.configLifecycleService.startAsync(preview: snapshot.configPreview)
+                : await self.configLifecycleService.stopAsync()
             self.lastConfigOperation = result
             self.isChangingCaddyRuntime = false
             await self.reloadSnapshotAfterConfigMutation()
@@ -161,7 +164,7 @@ final class DashboardViewModel: ObservableObject {
 
         Task { [weak self] in
             guard let self else { return }
-            let result = self.tlsService.trustLocalCAWithSystemPrompt()
+            let result = await self.tlsService.trustLocalCAWithSystemPromptAsync()
             self.lastTrustOperation = result
             self.isApplyingTLSTrust = false
             if result.succeeded {
@@ -177,7 +180,7 @@ final class DashboardViewModel: ObservableObject {
 
         Task { [weak self] in
             guard let self else { return }
-            let result = self.caddyInstallationService.updateViaHomebrew()
+            let result = await self.caddyInstallationService.updateViaHomebrewAsync()
             self.lastCaddyUpdateOperation = result
             self.isUpdatingCaddy = false
             await self.refreshAfterCaddyUpdateIfNeeded(result)
@@ -315,11 +318,15 @@ final class DashboardViewModel: ObservableObject {
 
     func scheduleDraftAutoSave() {
         guard hasLoaded else { return }
-        draftAutoSaveTask?.cancel()
-        draftAutoSaveTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.draftAutoSaveDebounceNanoseconds)
-            guard !Task.isCancelled else { return }
-            await self?.saveRouteAndOnDemandDraftsIfNeeded()
+        Task { [weak self] in
+            guard let self else { return }
+            await scheduler.scheduleDebounced(
+                id: Self.draftAutosaveJobID,
+                delayNanoseconds: Self.draftAutoSaveDebounceNanoseconds
+            ) { [weak self] in
+                guard let self else { return }
+                await self.saveRouteAndOnDemandDraftsIfNeeded()
+            }
         }
     }
 
@@ -532,11 +539,7 @@ final class DashboardViewModel: ObservableObject {
                 : await self.onDemandAppsService.stopApp(id: appID)
             self.lastOnDemandAppControlResult = result
             self.isChangingOnDemandAppRuntime = false
-            let updatedSnapshot = await self.dashboardService.loadSnapshot()
-            self.snapshot = updatedSnapshot
-            self.hasLoaded = true
-            self.startRuntimePollingIfNeeded()
-            self.refreshLogs()
+            await self.reloadSnapshotAndRefreshLogs()
         }
     }
 
@@ -548,11 +551,7 @@ final class DashboardViewModel: ObservableObject {
             let result = await self.onDemandAppsService.controlMultipassService(id: serviceID, action: action)
             self.lastMultipassServiceControlResult = result
             self.isChangingMultipassServiceRuntime = false
-            let updatedSnapshot = await self.dashboardService.loadSnapshot()
-            self.snapshot = updatedSnapshot
-            self.hasLoaded = true
-            self.startRuntimePollingIfNeeded()
-            self.refreshLogs()
+            await self.reloadSnapshotAndRefreshLogs()
         }
     }
 
@@ -564,26 +563,20 @@ final class DashboardViewModel: ObservableObject {
             let result = await self.onDemandAppsService.controlMultipassVM(vmName: vmName, action: action)
             self.lastMultipassVMControlResult = result
             self.isChangingMultipassVMRuntime = false
-            let updatedSnapshot = await self.dashboardService.loadSnapshot()
-            self.snapshot = updatedSnapshot
-            self.hasLoaded = true
-            self.startRuntimePollingIfNeeded()
-            self.refreshLogs()
+            await self.reloadSnapshotAndRefreshLogs()
         }
     }
 
     func hostLogText(for app: OnDemandAppDraft) -> String {
-        let raw = AppLogService.readLog()
         let needles = [
             "host=\(app.host.lowercased())",
             "app=\(app.name.lowercased())",
             app.host.lowercased()
         ]
-        return filterLogLines(raw, containsAny: needles)
+        return filterLogLines(appLogText, containsAny: needles)
     }
 
     func eventLogText(for app: OnDemandAppDraft) -> String {
-        let raw = AppLogService.readLog()
         let appNeedles = [
             "app=\(app.name.lowercased())",
             "unit=\(app.unitKind.rawValue):\(app.unitName.lowercased())",
@@ -602,7 +595,7 @@ final class DashboardViewModel: ObservableObject {
             "succeeded",
             "failed"
         ]
-        return raw
+        return appLogText
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)
             .filter { line in
@@ -615,23 +608,21 @@ final class DashboardViewModel: ObservableObject {
 
     func fetchContainerLogText(for app: OnDemandAppDraft, tailLines: Int = 200) async -> String {
         let unit = shellEscape(app.unitName)
-        return await Task.detached(priority: .userInitiated) { [shellRunner] in
-            let command: String
-            switch app.unitKind {
-            case .container:
-                command = "\(app.runtime.rawValue) logs --tail \(tailLines) \(unit)"
-            case .pod:
-                command = "\(app.runtime.rawValue) pod logs --tail \(tailLines) \(unit)"
-            }
-            let result = shellRunner.runShell(command)
-            let text = [result.stdout, result.stderr]
-                .joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty {
-                return "Keine Ausgabe vorhanden."
-            }
-            return text
-        }.value
+        let command: String
+        switch app.unitKind {
+        case .container:
+            command = "\(app.runtime.rawValue) logs --tail \(tailLines) \(unit)"
+        case .pod:
+            command = "\(app.runtime.rawValue) pod logs --tail \(tailLines) \(unit)"
+        }
+        let result = await shellRunner.runShellAsync(command)
+        let text = [result.stdout, result.stderr]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            return "Keine Ausgabe vorhanden."
+        }
+        return text
     }
 
     func runShellCommandInApp(_ command: String, app: OnDemandAppDraft) async -> String {
@@ -639,23 +630,21 @@ final class DashboardViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return "Bitte einen Befehl eingeben." }
         let unit = shellEscape(app.unitName)
         let shellCommand = shellEscape(trimmed)
-        return await Task.detached(priority: .userInitiated) { [shellRunner] in
-            let runtimeCommand: String
-            switch app.unitKind {
-            case .container:
-                runtimeCommand = "\(app.runtime.rawValue) exec \(unit) sh -lc \(shellCommand)"
-            case .pod:
-                runtimeCommand = "\(app.runtime.rawValue) pod exec \(unit) sh -lc \(shellCommand)"
-            }
-            let result = shellRunner.runShell(runtimeCommand)
-            let output = [result.stdout, result.stderr]
-                .joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if output.isEmpty {
-                return "Befehl ausgeführt (keine Ausgabe). Exit-Code: \(result.exitCode)"
-            }
-            return output
-        }.value
+        let runtimeCommand: String
+        switch app.unitKind {
+        case .container:
+            runtimeCommand = "\(app.runtime.rawValue) exec \(unit) sh -lc \(shellCommand)"
+        case .pod:
+            runtimeCommand = "\(app.runtime.rawValue) pod exec \(unit) sh -lc \(shellCommand)"
+        }
+        let result = await shellRunner.runShellAsync(runtimeCommand)
+        let output = [result.stdout, result.stderr]
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if output.isEmpty {
+            return "Befehl ausgeführt (keine Ausgabe). Exit-Code: \(result.exitCode)"
+        }
+        return output
     }
 
     func openInteractiveShellForOnDemandApp(_ app: OnDemandAppDraft) -> OnDemandAppControlResult {
@@ -728,15 +717,15 @@ final class DashboardViewModel: ObservableObject {
             let result: ConfigOperationResult
             switch kind {
             case .write:
-                result = self.configLifecycleService.write(preview: preview)
+                result = await self.configLifecycleService.writeAsync(preview: preview)
             case .validate:
-                result = self.configLifecycleService.validate(preview: preview)
+                result = await self.configLifecycleService.validateAsync(preview: preview)
             case .reload:
-                result = self.configLifecycleService.reload(preview: preview)
+                result = await self.configLifecycleService.reloadAsync(preview: preview)
             case .start:
-                result = self.configLifecycleService.start(preview: preview)
+                result = await self.configLifecycleService.startAsync(preview: preview)
             case .stop:
-                result = self.configLifecycleService.stop()
+                result = await self.configLifecycleService.stopAsync()
             case .autoApply:
                 result = ConfigOperationResult(
                     kind: .autoApply,
@@ -769,13 +758,13 @@ final class DashboardViewModel: ObservableObject {
             if !currentSnapshot.caddyRuntimeStatus.isRunning {
                 AppLogService.logEvent("Caddy auto-start on initial load (runtime not running)")
                 isChangingCaddyRuntime = true
-                let startResult = configLifecycleService.start(preview: currentSnapshot.configPreview)
+                let startResult = await self.configLifecycleService.startAsync(preview: currentSnapshot.configPreview)
                 isChangingCaddyRuntime = false
                 lastConfigOperation = startResult
                 await reloadSnapshotAfterConfigMutation()
                 runDeferredRefreshIfNeeded()
             } else if configFileDiffersFromPreview(currentSnapshot.configPreview) {
-                let validateResult = configLifecycleService.validate(preview: currentSnapshot.configPreview)
+                let validateResult = await self.configLifecycleService.validateAsync(preview: currentSnapshot.configPreview)
                 if !validateResult.succeeded {
                     lastConfigOperation = ConfigOperationResult(
                         kind: .autoApply,
@@ -787,7 +776,7 @@ final class DashboardViewModel: ObservableObject {
                     return
                 }
 
-                let reloadResult = configLifecycleService.reload(preview: currentSnapshot.configPreview)
+                let reloadResult = await self.configLifecycleService.reloadAsync(preview: currentSnapshot.configPreview)
                 lastConfigOperation = ConfigOperationResult(
                     kind: .autoApply,
                     succeeded: reloadResult.succeeded,
@@ -806,7 +795,7 @@ final class DashboardViewModel: ObservableObject {
             ?? previousSnapshot?.configPreview.generatedCaddyfile.hashValue
         guard previousFingerprint != currentFingerprint else { return }
 
-        let validateResult = configLifecycleService.validate(preview: currentSnapshot.configPreview)
+        let validateResult = await self.configLifecycleService.validateAsync(preview: currentSnapshot.configPreview)
         if !validateResult.succeeded {
             lastConfigOperation = ConfigOperationResult(
                 kind: .autoApply,
@@ -818,7 +807,7 @@ final class DashboardViewModel: ObservableObject {
             return
         }
 
-        let reloadResult = configLifecycleService.reload(preview: currentSnapshot.configPreview)
+        let reloadResult = await self.configLifecycleService.reloadAsync(preview: currentSnapshot.configPreview)
         lastConfigOperation = ConfigOperationResult(
             kind: .autoApply,
             succeeded: reloadResult.succeeded,
@@ -836,6 +825,11 @@ final class DashboardViewModel: ObservableObject {
         self.snapshot = snapshot
         self.hasLoaded = true
         self.startRuntimePollingIfNeeded()
+    }
+
+    private func reloadSnapshotAndRefreshLogs() async {
+        await reloadSnapshotAfterConfigMutation()
+        refreshLogs()
     }
 
     private func runDeferredRefreshIfNeeded() {
@@ -1004,11 +998,14 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func startRuntimePollingIfNeeded() {
-        guard runtimePollingTask == nil else { return }
-        runtimePollingTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: Self.runtimePollIntervalNanoseconds)
-                guard let self else { break }
+        Task { [weak self] in
+            guard let self else { return }
+            await scheduler.scheduleRepeating(
+                id: Self.runtimePollingJobID,
+                intervalNanoseconds: Self.runtimePollIntervalNanoseconds,
+                policy: .keepExisting
+            ) { [weak self] in
+                guard let self else { return }
                 await self.runBackgroundRuntimePollTick()
             }
         }
@@ -1028,4 +1025,5 @@ final class DashboardViewModel: ObservableObject {
             isInitialLoad: false
         )
     }
+
 }

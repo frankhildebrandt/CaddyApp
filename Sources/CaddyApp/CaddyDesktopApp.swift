@@ -4,6 +4,7 @@ import SwiftUI
 struct CaddyDesktopApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
     @StateObject private var viewModel = DashboardViewModel.bootstrap()
+    @AppStorage(AppWindowController.hideOnClosePreferenceKey) private var hideWindowToMenuBarOnClose = false
 
     init() {
         Task {
@@ -23,6 +24,43 @@ struct CaddyDesktopApp: App {
             MenuBarStatusView(viewModel: viewModel)
         } label: {
             MenuBarSystrayIcon()
+        }
+
+        Settings {
+            SettingsView(
+                viewModel: viewModel,
+                hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
+            )
+        }
+
+        .commands {
+            CommandMenu("CaddyApp") {
+                Button("Dashboard öffnen") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    NSApp.unhide(nil)
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Button("Aktualisieren") {
+                    viewModel.refresh()
+                }
+                .keyboardShortcut("r", modifiers: [.command])
+
+                Divider()
+
+                if let snapshot = viewModel.snapshot, snapshot.caddyInstall.isInstalled {
+                    Button(snapshot.caddyRuntimeStatus.isRunning ? "Caddy stoppen" : "Caddy starten") {
+                        viewModel.setCaddyRunning(!snapshot.caddyRuntimeStatus.isRunning)
+                    }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
+                }
+
+                Divider()
+
+                SettingsLink {
+                    Label("Einstellungen...", systemImage: "gearshape")
+                }
+            }
         }
     }
 }
@@ -75,5 +113,26 @@ private struct MenuBarStatusView: View {
         }
         .padding(8)
         .frame(minWidth: 240)
+    }
+}
+
+private struct SettingsView: View {
+    @ObservedObject var viewModel: DashboardViewModel
+    @Binding var hideWindowToMenuBarOnClose: Bool
+
+    var body: some View {
+        Form {
+            Section("Allgemein") {
+                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
+            }
+
+            Section("Aktionen") {
+                Button("Status neu laden") {
+                    viewModel.refresh()
+                }
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 460, minHeight: 220)
     }
 }

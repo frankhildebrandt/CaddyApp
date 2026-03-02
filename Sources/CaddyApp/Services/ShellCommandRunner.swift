@@ -1,6 +1,6 @@
 import Foundation
 
-struct CommandResult {
+struct CommandResult: Sendable {
     let exitCode: Int32
     let stdout: String
     let stderr: String
@@ -8,7 +8,7 @@ struct CommandResult {
     var isSuccess: Bool { exitCode == 0 }
 }
 
-struct ShellCommandRunner {
+struct ShellCommandRunner: Sendable {
     @discardableResult
     func run(_ launchPath: String, arguments: [String] = []) -> CommandResult {
         let renderedCommand = ([launchPath] + arguments.map(shellEscape)).joined(separator: " ")
@@ -49,6 +49,18 @@ struct ShellCommandRunner {
         let managedBin = AppPaths.managedBinDirectory.path.replacingOccurrences(of: "'", with: "'\\''")
         let wrappedCommand = "export PATH='\(managedBin)':$PATH; \(command)"
         return run("/bin/zsh", arguments: ["-lc", wrappedCommand])
+    }
+
+    func runAsync(_ launchPath: String, arguments: [String] = []) async -> CommandResult {
+        await Task.detached(priority: .userInitiated) {
+            run(launchPath, arguments: arguments)
+        }.value
+    }
+
+    func runShellAsync(_ command: String) async -> CommandResult {
+        await Task.detached(priority: .userInitiated) {
+            runShell(command)
+        }.value
     }
 
     private func shellEscape(_ value: String) -> String {

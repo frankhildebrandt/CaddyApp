@@ -4,6 +4,7 @@ import Network
 actor OnDemandAppsService {
     static let shared = OnDemandAppsService()
     static let gatewayPort: UInt16 = 49215
+    private static let maintenanceJobID = "on-demand.maintenance"
 
     private struct AppState {
         var phase: OnDemandAppPhase = .stopped
@@ -24,9 +25,9 @@ actor OnDemandAppsService {
         delegate: InsecureTLSNoRedirectURLSessionDelegate(),
         delegateQueue: nil
     )
+    private let scheduler = InternalScheduler()
     private let listenerQueue = DispatchQueue(label: "caddyapp.on-demand.gateway")
     private var listener: NWListener?
-    private var maintenanceTask: Task<Void, Never>?
     private var appsByID: [UUID: OnDemandAppDraft] = [:]
     private var appIDByHost: [String: UUID] = [:]
     private var states: [UUID: AppState] = [:]
@@ -231,11 +232,14 @@ actor OnDemandAppsService {
     }
 
     private func startMaintenanceLoopIfNeeded() {
-        guard maintenanceTask == nil else { return }
-        maintenanceTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
-                guard let self else { break }
+        Task { [weak self] in
+            guard let self else { return }
+            await scheduler.scheduleRepeating(
+                id: Self.maintenanceJobID,
+                intervalNanoseconds: 10_000_000_000,
+                policy: .keepExisting
+            ) { [weak self] in
+                guard let self else { return }
                 await self.stopIdleAppsIfNeeded()
             }
         }

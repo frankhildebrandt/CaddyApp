@@ -1,6 +1,14 @@
 import Foundation
 
-struct LocalhostTLSService {
+struct LocalhostTLSService: Sendable {
+    func trustLocalCAWithSystemPromptAsync() async -> SetupOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.trustLocalCAWithSystemPrompt()
+        }.value
+    }
+
+
     private let shell = ShellCommandRunner()
     private let privilegedRunner = PrivilegedCommandRunner()
 

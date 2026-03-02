@@ -1,6 +1,6 @@
 import Foundation
 
-struct CaddyConfigLifecycleService {
+struct CaddyConfigLifecycleService: @unchecked Sendable {
     private let shell = ShellCommandRunner()
     private let defaultAdminEndpoint = "localhost:2019"
     private let fileManager = FileManager.default
@@ -122,6 +122,41 @@ struct CaddyConfigLifecycleService {
     func stop() -> ConfigOperationResult {
         let stopResult = shell.runShell("caddy stop")
         return mapResult(kind: .stop, baseMessage: "Caddy stop", result: stopResult)
+    }
+
+    func writeAsync(preview: CaddyConfigPreview) async -> ConfigOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.write(preview: preview)
+        }.value
+    }
+
+    func validateAsync(preview: CaddyConfigPreview) async -> ConfigOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.validate(preview: preview)
+        }.value
+    }
+
+    func reloadAsync(preview: CaddyConfigPreview) async -> ConfigOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.reload(preview: preview)
+        }.value
+    }
+
+    func startAsync(preview: CaddyConfigPreview) async -> ConfigOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.start(preview: preview)
+        }.value
+    }
+
+    func stopAsync() async -> ConfigOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.stop()
+        }.value
     }
 
     private func performReloadCommand(preview: CaddyConfigPreview) -> ConfigOperationResult {

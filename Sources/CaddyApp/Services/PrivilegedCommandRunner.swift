@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-struct PrivilegedCommandRunner {
+struct PrivilegedCommandRunner:  Sendable {
     func runWithAdministratorPrivileges(_ command: String, prompt: String? = nil) -> CommandResult {
         let script = appleScriptForShellCommand(command, prompt: prompt)
         return executeAppleScript(script)

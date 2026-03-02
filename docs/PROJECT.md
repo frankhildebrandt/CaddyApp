@@ -12,6 +12,14 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Build tooling: `Makefile` + shell scripts
 - Build artifacts: `_build/debug/CaddyApp.app`, `_build/release/CaddyApp.app`
 
+## Runtime Architecture Updates
+
+- Shared internal scheduler (`InternalScheduler`) for recurring and debounced jobs.
+- Async wrappers for command-heavy services to keep UI interaction responsive.
+- Dashboard runtime polling interval tuned to reduce idle CPU pressure.
+- Loading UX standardized with skeleton placeholders and inline skeleton activity states.
+- Global app menu plus native macOS settings window (`Apple-,`) added.
+
 ## Repository Structure
 
 - `Sources/CaddyApp/`

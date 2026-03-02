@@ -38,8 +38,8 @@ struct ContentView: View {
         var title: String {
             switch self {
             case .dashboard: return "Dashboard"
-            case .caddyTLS: return "Caddy / TLS"
-            case .runtime: return "Podman"
+            case .caddyTLS: return "Caddy & TLS"
+            case .runtime: return "Runtime"
             case .multipass: return "Multipass"
             case .onDemandApps: return "On-Demand Apps"
             case .custom: return "Custom"
@@ -189,8 +189,8 @@ struct ContentView: View {
                         featureSection(snapshot)
                     }
                 } else if viewModel.isLoading {
-                    ProgressView("Loading local environment...")
-                        .padding(.top, 24)
+                    appSkeletonState
+                        .padding(.top, 6)
                 } else if (selectedTab ?? .dashboard) == .logs {
                     loggingSection()
                 } else {
@@ -212,20 +212,24 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("CaddyApp")
                         .font(.title.bold())
-                    Text("macOS control panel for Caddy, localhost reverse proxies, AutoTLS and runtime discovery")
+                    Text("Lokales Caddy Control Center")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer()
-            Button("In Menüleiste") {
+            Button {
                 AppWindowController().hideAppToMenuBar()
+            } label: {
+                Label("Menüleiste", systemImage: "menubar.dock.rectangle")
             }
             .buttonStyle(.bordered)
             Toggle("Schließen versteckt", isOn: $hideWindowToMenuBarOnClose)
                 .toggleStyle(.checkbox)
-            Button(viewModel.isLoading ? "Refreshing..." : "Refresh") {
+            Button {
                 viewModel.refresh()
+            } label: {
+                Label(viewModel.isLoading ? "Lädt..." : "Aktualisieren", systemImage: "arrow.clockwise")
             }
             .disabled(viewModel.isLoading)
             .buttonStyle(.borderedProminent)
@@ -612,8 +616,7 @@ struct ContentView: View {
                     )
 
                     if viewModel.isUpdatingCaddy {
-                        ProgressView()
-                            .controlSize(.small)
+                        InlineActivitySkeleton()
                     }
                 }
                 if let updateOperation = viewModel.lastCaddyUpdateOperation {
@@ -662,8 +665,7 @@ struct ContentView: View {
                     || viewModel.isApplyingConfig
                 )
                 if viewModel.isChangingCaddyRuntime {
-                    ProgressView()
-                        .controlSize(.small)
+                    InlineActivitySkeleton()
                 }
                 LabeledContent("Root certificate") {
                     Text(snapshot.tlsStatus.rootCertificatePresent ? "Present" : "Missing")
@@ -687,8 +689,7 @@ struct ContentView: View {
                     .disabled(!snapshot.caddyInstall.isInstalled)
 
                     if viewModel.isApplyingTLSTrust {
-                        ProgressView()
-                            .controlSize(.small)
+                        InlineActivitySkeleton()
                     }
                 }
                 if let trustOperation = viewModel.lastTrustOperation {
@@ -990,8 +991,7 @@ struct ContentView: View {
                         .disabled(viewModel.isSavingCustomConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
 
                         if viewModel.isSavingCustomConfig {
-                            ProgressView()
-                                .controlSize(.small)
+                            InlineActivitySkeleton()
                         }
                     }
 
@@ -1567,8 +1567,7 @@ struct ContentView: View {
             }
 
             if onDemandLoadingByAppID[app.id] == true {
-                ProgressView()
-                    .controlSize(.small)
+                InlineActivitySkeleton()
             }
 
             let text = onDemandContainerLogByAppID[app.id] ?? ""
@@ -1730,8 +1729,7 @@ struct ContentView: View {
                                 .disabled(viewModel.isRefreshingAppRepositories)
 
                                 if viewModel.isRefreshingAppRepositories {
-                                    ProgressView()
-                                        .controlSize(.small)
+                                    InlineActivitySkeleton()
                                 }
                             }
 
@@ -1902,8 +1900,7 @@ struct ContentView: View {
                     .disabled(!snapshot.caddyInstall.isInstalled)
 
                     if viewModel.isApplyingConfig {
-                        ProgressView()
-                            .controlSize(.small)
+                        InlineActivitySkeleton()
                     }
                 }
                 .disabled(viewModel.isApplyingConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
@@ -1954,8 +1951,7 @@ struct ContentView: View {
                     }
 
                     if viewModel.isRefreshingLogs {
-                        ProgressView()
-                            .controlSize(.small)
+                        InlineActivitySkeleton()
                     }
 
                     Spacer()
@@ -1991,6 +1987,33 @@ struct ContentView: View {
         }
         .onAppear {
             viewModel.refreshLogs()
+        }
+    }
+
+    private var appSkeletonState: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(height: 112)
+                    .overlay(
+                        VStack(alignment: .leading, spacing: 8) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.secondary.opacity(0.18))
+                                .frame(width: 160, height: 10)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.secondary.opacity(0.14))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 10)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.secondary.opacity(0.14))
+                                .frame(width: 220, height: 10)
+                        }
+                        .padding(14),
+                        alignment: .topLeading
+                    )
+                    .redacted(reason: .placeholder)
+            }
         }
     }
 
@@ -2088,6 +2111,16 @@ struct ContentView: View {
 
     private func runtimeDashboardURLDisplayString(for target: RuntimeTarget) -> String? {
         runtimeDashboardURL(for: target)?.absoluteString
+    }
+}
+
+private struct InlineActivitySkeleton: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color.secondary.opacity(0.2))
+            .frame(width: 64, height: 14)
+            .redacted(reason: .placeholder)
+            .accessibilityLabel("Lädt")
     }
 }
 

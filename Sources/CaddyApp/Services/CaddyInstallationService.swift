@@ -1,6 +1,14 @@
 import Foundation
 
-struct CaddyInstallationService {
+struct CaddyInstallationService: Sendable {
+    func updateViaHomebrewAsync() async -> CaddyUpdateOperationResult {
+        let service = self
+        return await Task.detached(priority: .userInitiated) {
+            service.updateViaHomebrew()
+        }.value
+    }
+
+
     private let shell = ShellCommandRunner()
 
     func loadStatus() -> CaddyInstallStatus {
