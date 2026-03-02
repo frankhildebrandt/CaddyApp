@@ -39,7 +39,7 @@ struct ContentView: View {
             switch self {
             case .dashboard: return "Dashboard"
             case .caddyTLS: return "Caddy / TLS"
-            case .runtime: return "Runtime"
+            case .runtime: return "Podman"
             case .multipass: return "Multipass"
             case .onDemandApps: return "On-Demand Apps"
             case .custom: return "Custom"
