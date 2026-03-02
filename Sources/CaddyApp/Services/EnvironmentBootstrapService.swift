@@ -4,6 +4,7 @@ struct EnvironmentBootstrapService {
     private let shell = ShellCommandRunner()
     private let installService = CaddyInstallationService()
     private let fileManager = FileManager.default
+    private let brewServiceConfigPath = "/opt/homebrew/etc/Caddyfile"
 
     func runAutoSetupIfNeeded(caddyInstall: CaddyInstallStatus, tlsStatus: TLSStatus) -> AutoSetupReport {
         var operations: [SetupOperationResult] = []
@@ -21,6 +22,9 @@ struct EnvironmentBootstrapService {
         }
         if let serviceRepair = repairMissingHomebrewCaddyfileIfNeeded() {
             operations.append(serviceRepair)
+        }
+        if let consolidation = consolidateCaddyInstancesIfNeeded() {
+            operations.append(consolidation)
         }
 
         return AutoSetupReport(
@@ -206,5 +210,92 @@ struct EnvironmentBootstrapService {
             output: actions.joined(separator: "\n"),
             performedAt: Date()
         )
+    }
+
+    private func consolidateCaddyInstancesIfNeeded() -> SetupOperationResult? {
+        let processResult = shell.runShell("pgrep -fl 'caddy run'")
+        guard processResult.isSuccess else { return nil }
+
+        let lines = processResult.stdout
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let processes = lines.compactMap(parseCaddyProcessLine)
+        guard processes.count > 1 else { return nil }
+
+        let preferredPID = choosePreferredPID(from: processes)
+        let toStop = processes.filter { $0.pid != preferredPID }
+
+        var output: [String] = [
+            "Detected multiple Caddy instances: \(processes.map { "\($0.pid)" }.joined(separator: ", "))",
+            "Keeping PID \(preferredPID) and stopping \(toStop.map { "\($0.pid)" }.joined(separator: ", "))"
+        ]
+
+        var allSucceeded = true
+        for process in toStop {
+            let stopResult = shell.runShell("kill \(process.pid)")
+            if !stopResult.isSuccess {
+                allSucceeded = false
+            }
+            let stopOutput = [stopResult.stdout, stopResult.stderr]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            output.append("kill \(process.pid): \(stopResult.isSuccess ? "ok" : "failed")")
+            if !stopOutput.isEmpty {
+                output.append(stopOutput)
+            }
+        }
+
+        _ = shell.runShell("sleep 1")
+        let verifyResult = shell.runShell("pgrep -fl 'caddy run'")
+        let remaining = verifyResult.stdout
+            .split(separator: "\n")
+            .map(String.init)
+            .compactMap(parseCaddyProcessLine)
+
+        if remaining.count > 1 {
+            allSucceeded = false
+            output.append("Remaining Caddy PIDs after consolidation: \(remaining.map { "\($0.pid)" }.joined(separator: ", "))")
+        } else if let only = remaining.first {
+            output.append("Remaining Caddy PID: \(only.pid)")
+        } else {
+            output.append("No Caddy run process remains after consolidation")
+        }
+
+        return SetupOperationResult(
+            kind: .consolidateCaddyInstances,
+            succeeded: allSucceeded,
+            message: allSucceeded
+                ? "Consolidated multiple Caddy instances to a single process"
+                : "Detected multiple Caddy instances, but consolidation was not fully successful",
+            output: output.joined(separator: "\n"),
+            performedAt: Date()
+        )
+    }
+
+    private func choosePreferredPID(from processes: [CaddyProcess]) -> Int {
+        if let brewProcess = processes.first(where: { $0.command.contains("/opt/homebrew/opt/caddy/bin/caddy run") && $0.command.contains("--config \(brewServiceConfigPath)") }) {
+            return brewProcess.pid
+        }
+        if let brewConfigProcess = processes.first(where: { $0.command.contains("--config \(brewServiceConfigPath)") }) {
+            return brewConfigProcess.pid
+        }
+        return processes.sorted { $0.pid < $1.pid }.first?.pid ?? processes[0].pid
+    }
+
+    private func parseCaddyProcessLine(_ line: String) -> CaddyProcess? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let parts = trimmed.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
+        guard let pidPart = parts.first, let pid = Int(pidPart) else { return nil }
+        let command = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        return CaddyProcess(pid: pid, command: command)
+    }
+
+    private struct CaddyProcess {
+        let pid: Int
+        let command: String
     }
 }

@@ -33,6 +33,7 @@ Detect Caddy on macOS, display version information, and provide a safe update pa
 - If the upgrade fails, the app attempts recovery via `brew reinstall caddy` and reports the outcome.
 - Version comparison is basic semver parsing and should be hardened for edge cases.
 - Auto-setup repairs broken Homebrew service startup when the expected `$(brew --prefix)/etc/Caddyfile` is missing (creates a symlink to app-generated config or a fallback file, then restarts `brew services` if needed).
+- Auto-setup detects and consolidates multiple simultaneously running `caddy run` processes to a single preferred instance (Homebrew service process preferred when present).
 
 ## Progress Log
 
@@ -41,3 +42,4 @@ Detect Caddy on macOS, display version information, and provide a safe update pa
 - 2026-02-26: Added explicit update-available status and one-click Homebrew update flow with confirmation + recovery fallback.
 - 2026-02-26: Added Homebrew-free install/update fallback via direct GitHub release download into app-managed bin.
 - 2026-03-02: Added automatic Homebrew service repair for missing `Caddyfile` to fix recurring `brew services` `error 1` startup failures.
+- 2026-03-02: Added automatic multi-instance Caddy consolidation to prevent conflicting parallel `caddy run` processes.
