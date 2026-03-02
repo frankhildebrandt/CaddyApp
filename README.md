@@ -86,7 +86,9 @@ Build-Artefakte:
 - `Sources/CaddyApp/ViewModels/` - UI-State und Orchestrierung
 - `Sources/CaddyApp/ViewModels/Features/` - Feature-spezifische ViewModels
 - `Sources/CaddyApp/Services/` - Caddy-, Runtime- und Systemintegration
-- `Sources/CaddyApp/Models/` - Domain-Modelle und Feature-Katalog
+- `Sources/CaddyApp/Models/` - Domain-Modelle (one-type-per-file)
+  - `Models/Config/`, `Models/Routing/`, `Models/OnDemand/`, `Models/Multipass/`
+  - `Models/Repository/`, `Models/Caddy/`, `Models/TLS/`, `Models/Setup/`, `Models/Dashboard/`, `Models/Features/`
 - `docs/features/` - Feature-Status und Fortschrittsdokumente
 - `docs/repository/` - YAML-Feeds fuer Web-Repositories
 - `scripts/` - Build- und Automatisierungs-Skripte
@@ -144,3 +146,9 @@ file CaddyApp.app/Contents/MacOS/CaddyApp
 - Feature-Details: `docs/features/*.md`
 - Repository-Feed-Doku: `docs/repository/README.md`
 - Agent-Regeln: `AGENTS.md`
+
+## Architektur-Hinweis (Model Refactor)
+
+- Business-Logik (Validierung, Normalisierung, Mapping/Factory-Regeln) liegt in `Models/**`.
+- `ViewModels` halten UI-Zustand und orchestrieren Services.
+- `Services` kapseln IO/Systemintegration (Shell, Netzwerk, Filesystem) und vermeiden fachliche Duplikation.

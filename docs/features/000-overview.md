@@ -32,3 +32,4 @@ This folder tracks feature-level progress for the macOS app that manages Caddy a
 - Update each feature document when implementation scope changes.
 - Move checklist items from TODO to DONE as code lands.
 - Keep status and acceptance criteria aligned with the actual app behavior.
+- Keep architecture boundaries enforced: domain rules in `Models/**`, orchestration in `ViewModels`, external IO in `Services`.

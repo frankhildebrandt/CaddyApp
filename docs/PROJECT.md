@@ -22,6 +22,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Main window now uses `AppShellView` with dedicated shell components (`AppHeaderView`, `AppSidebarView`) and per-feature detail views.
 - Settings are decoupled into `SettingsRootView` with pane views (`General`, `On-Demand`, `Services`, `Custom Config`) instead of `ContentView` extensions.
 - On-Demand, Multipass, and Settings feature state is segmented into feature view models under `ViewModels/Features/*`.
+- Domain layer refactor: model types are split into one-type-per-file under `Models/**`; validation/normalization/routing rules now live in models instead of view models.
 
 ## Repository Structure
 
@@ -35,7 +36,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - `Sources/CaddyApp/ViewModels/`: UI state and orchestration
 - `Sources/CaddyApp/ViewModels/Features/`: feature-specific UI state
 - `Sources/CaddyApp/Services/`: Caddy, runtime, config, and system integration logic
-- `Sources/CaddyApp/Models/`: domain models and feature catalog
+- `Sources/CaddyApp/Models/`: domain models and feature catalog (grouped by domain folders, one type per file)
 - `docs/features/`: feature-level planning/progress documents
 - `docs/repository/`: YAML app repository feed (for GitHub Pages)
 - `scripts/`: build helpers and workflow automation scripts

@@ -214,19 +214,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func addOnDemandPreset(_ preset: OnDemandAppPreset) {
-        var app = preset.app
-        let existingHosts = Set(onDemandApps.map { $0.host.lowercased() })
-        if existingHosts.contains(app.host.lowercased()) {
-            let baseHost = app.host.replacingOccurrences(of: ".localhost", with: "")
-            var suffix = 2
-            while existingHosts.contains("\(baseHost)\(suffix).localhost".lowercased()) {
-                suffix += 1
-            }
-            app.host = "\(baseHost)\(suffix).localhost"
-            app.unitName = "\(app.unitName)-\(suffix)"
-            app.name = "\(app.name) \(suffix)"
-        }
-        onDemandApps.append(app)
+        onDemandApps.append(preset.app.uniquedForInsert(existingApps: onDemandApps))
     }
 
     func removeOnDemandApp(id: OnDemandAppDraft.ID) {
@@ -245,34 +233,12 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func addMultipassService(forVMName vmName: String) {
-        let normalizedVMName = vmName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedVMName.isEmpty else {
+        let defaultService = MultipassServiceDraft.defaultForVM(vmName, existingServices: multipassServices)
+        if defaultService.vmName.isEmpty {
             addMultipassService()
             return
         }
-
-        let vmLabel = sanitizeDNSLabel(normalizedVMName) ?? "vm"
-        let existingNames = Set(
-            multipassServices
-                .filter { $0.vmName.caseInsensitiveCompare(normalizedVMName) == .orderedSame }
-                .map { $0.serviceName.lowercased() }
-        )
-
-        var serviceName = "service"
-        var suffix = 1
-        while existingNames.contains(serviceName.lowercased()) {
-            suffix += 1
-            serviceName = "service\(suffix)"
-        }
-
-        multipassServices.append(
-            MultipassServiceDraft(
-                vmName: normalizedVMName,
-                serviceName: serviceName,
-                host: "\(serviceName).\(vmLabel).mp.localhost",
-                targetPort: 8080
-            )
-        )
+        multipassServices.append(defaultService)
     }
 
     func removeMultipassService(id: MultipassServiceDraft.ID) {
@@ -372,44 +338,18 @@ final class DashboardViewModel: ObservableObject {
     private func saveRouteAndOnDemandDraftsIfNeeded() async {
         guard !isSavingCustomConfig else { return }
         let existingSettings = customConfigStore.load()
-        let normalizedRoutes = customRoutes.map { route in
-            CustomRouteDraft(
-                id: route.id,
-                host: route.host.trimmingCharacters(in: .whitespacesAndNewlines),
-                upstream: route.upstream.trimmingCharacters(in: .whitespacesAndNewlines),
-                enabled: route.enabled
-            )
-        }
-        let normalizedOnDemandApps = onDemandApps.map { app in
-            var normalized = app
-            normalized.name = app.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.host = app.host.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.unitName = app.unitName.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.targetHost = app.targetHost.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.runArguments = app.runArguments.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.runSteps = app.runSteps
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            normalized.healthPath = app.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            return normalized
-        }
-        let normalizedMultipassServices = multipassServices.map { service in
-            var normalized = service
-            normalized.vmName = service.vmName.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.serviceName = service.serviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.host = service.host.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.healthPath = service.healthPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.systemdUnit = service.systemdUnit.trimmingCharacters(in: .whitespacesAndNewlines)
-            return normalized
-        }
-        let normalizedRepositories = appRepositories.map { repository in
-            var normalized = repository
-            normalized.name = repository.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalized.entryURL = repository.entryURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            return normalized
-        }
+        let normalizedBundle = CustomConfigDraftBundle(
+            routes: customRoutes,
+            onDemandApps: onDemandApps,
+            multipassServices: multipassServices,
+            appRepositories: appRepositories
+        ).normalized()
+        let normalizedRoutes = normalizedBundle.routes
+        let normalizedOnDemandApps = normalizedBundle.onDemandApps
+        let normalizedMultipassServices = normalizedBundle.multipassServices
+        let normalizedRepositories = normalizedBundle.appRepositories
 
-        if let validationError = validateCustomConfig(routes: normalizedRoutes) {
+        if let validationError = normalizedBundle.validateRoutes()?.localizedDescription {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
                 succeeded: false,
@@ -418,7 +358,7 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
-        if let validationError = validateOnDemandApps(normalizedOnDemandApps, existingHosts: normalizedRoutes.map(\.host)) {
+        if let validationError = normalizedBundle.validateOnDemandApps(existingRouteHosts: normalizedRoutes.map(\.host))?.localizedDescription {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
                 succeeded: false,
@@ -427,10 +367,9 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
-        if let validationError = validateMultipassServices(
-            normalizedMultipassServices,
+        if let validationError = normalizedBundle.validateMultipassServices(
             existingHosts: normalizedRoutes.map(\.host) + normalizedOnDemandApps.map(\.host)
-        ) {
+        )?.localizedDescription {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
                 succeeded: false,
@@ -439,7 +378,7 @@ final class DashboardViewModel: ObservableObject {
             )
             return
         }
-        if let validationError = validateAppRepositories(normalizedRepositories) {
+        if let validationError = normalizedBundle.validateRepositories()?.localizedDescription {
             customConfigValidationError = validationError
             lastCustomConfigSaveResult = CustomConfigSaveResult(
                 succeeded: false,
@@ -568,33 +507,12 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func hostLogText(for app: OnDemandAppDraft) -> String {
-        let needles = [
-            "host=\(app.host.lowercased())",
-            "app=\(app.name.lowercased())",
-            app.host.lowercased()
-        ]
-        return filterLogLines(appLogText, containsAny: needles)
+        AppLogFilter.filter(appLogText, containsAny: app.hostLogNeedles)
     }
 
     func eventLogText(for app: OnDemandAppDraft) -> String {
-        let appNeedles = [
-            "app=\(app.name.lowercased())",
-            "unit=\(app.unitKind.rawValue):\(app.unitName.lowercased())",
-            app.unitName.lowercased(),
-            app.host.lowercased()
-        ]
-        let eventNeedles = [
-            "on-demand",
-            "start",
-            "stop",
-            "delete",
-            "backup",
-            "create",
-            "reload",
-            "requested",
-            "succeeded",
-            "failed"
-        ]
+        let appNeedles = app.eventLogNeedles
+        let eventNeedles = OnDemandAppDraft.eventActionNeedles
         return appLogText
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)
@@ -846,155 +764,8 @@ final class DashboardViewModel: ObservableObject {
         return normalizedExisting != normalizedPreview
     }
 
-    private func filterLogLines(_ raw: String, containsAny needles: [String]) -> String {
-        raw
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { line in
-                let lowered = line.lowercased()
-                return needles.contains(where: { !$0.isEmpty && lowered.contains($0) })
-            }
-            .joined(separator: "\n")
-    }
-
     nonisolated private func shellEscape(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
-
-    private func sanitizeDNSLabel(_ value: String) -> String? {
-        let lowered = value.lowercased()
-        let mapped = lowered.map { character -> Character in
-            if character.isLetter || character.isNumber || character == "-" {
-                return character
-            }
-            return "-"
-        }
-        let label = String(mapped)
-            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        guard !label.isEmpty else { return nil }
-        return String(label.prefix(63))
-    }
-
-    private func validateCustomConfig(routes: [CustomRouteDraft]) -> String? {
-        for (index, route) in routes.enumerated() {
-            if route.host.isEmpty || route.upstream.isEmpty {
-                return "Route \(index + 1): Host und Upstream dürfen nicht leer sein."
-            }
-            if route.host.contains(where: \.isWhitespace) {
-                return "Route \(index + 1): Host darf keine Leerzeichen enthalten."
-            }
-            if route.upstream.contains(where: \.isWhitespace) {
-                return "Route \(index + 1): Upstream darf keine Leerzeichen enthalten."
-            }
-        }
-
-        let duplicateHosts = Dictionary(grouping: routes.map(\.host)) { $0 }
-            .filter { !$0.key.isEmpty && $0.value.count > 1 }
-            .map(\.key)
-            .sorted()
-        if let duplicateHost = duplicateHosts.first {
-            return "Doppelter Host in Custom Routes: \(duplicateHost)"
-        }
-
-        return nil
-    }
-
-    private func validateOnDemandApps(_ apps: [OnDemandAppDraft], existingHosts: [String]) -> String? {
-        let routeHostSet = Set(existingHosts.map { $0.lowercased() })
-
-        for (index, app) in apps.enumerated() {
-            let row = index + 1
-            if app.name.isEmpty { return "On-Demand App \(row): Name darf nicht leer sein." }
-            if app.host.isEmpty { return "On-Demand App \(row): Host darf nicht leer sein." }
-            if app.unitName.isEmpty { return "On-Demand App \(row): Container/Pod Name darf nicht leer sein." }
-            if app.targetHost.isEmpty { return "On-Demand App \(row): Target Host darf nicht leer sein." }
-            if app.targetPort <= 0 || app.targetPort > 65535 { return "On-Demand App \(row): Target Port ist ungültig." }
-            if app.idleTimeoutSeconds < 15 { return "On-Demand App \(row): Idle Timeout muss mindestens 15 Sekunden sein." }
-            if app.host.contains(where: \.isWhitespace) { return "On-Demand App \(row): Host darf keine Leerzeichen enthalten." }
-            if app.targetHost.contains(where: \.isWhitespace) { return "On-Demand App \(row): Target Host darf keine Leerzeichen enthalten." }
-            if app.startMode == .runCommand && app.runArguments.isEmpty && app.runSteps.isEmpty {
-                return "On-Demand App \(row): Run Arguments oder Run Steps dürfen im Modus 'Run Command' nicht leer sein."
-            }
-            if app.runtime == .docker && app.unitKind == .pod {
-                return "On-Demand App \(row): Docker unterstützt hier keine Pods. Bitte Container wählen oder Podman nutzen."
-            }
-            if routeHostSet.contains(app.host.lowercased()) {
-                return "On-Demand App \(row): Host kollidiert mit Custom Route: \(app.host)"
-            }
-        }
-
-        let duplicateHosts = Dictionary(grouping: apps.map { $0.host.lowercased() }) { $0 }
-            .filter { !$0.key.isEmpty && $0.value.count > 1 }
-            .map(\.key)
-            .sorted()
-        if let duplicateHost = duplicateHosts.first {
-            return "Doppelter Host in On-Demand Apps: \(duplicateHost)"
-        }
-
-        let duplicateUnits = Dictionary(grouping: apps.map { "\($0.runtime.rawValue):\($0.unitKind.rawValue):\($0.unitName.lowercased())" }) { $0 }
-            .filter { !$0.key.hasSuffix(":") && $0.value.count > 1 }
-            .map(\.key)
-            .sorted()
-        if let duplicateUnit = duplicateUnits.first {
-            return "Doppelter Runtime/Unit-Name in On-Demand Apps: \(duplicateUnit)"
-        }
-
-        return nil
-    }
-
-    private func validateAppRepositories(_ repositories: [AppRepositoryDraft]) -> String? {
-        for (index, repository) in repositories.enumerated() {
-            let row = index + 1
-            if repository.name.isEmpty {
-                return "Repository \(row): Name darf nicht leer sein."
-            }
-            if repository.enabled && repository.entryURL.isEmpty {
-                return "Repository \(row): URL darf bei aktivem Repository nicht leer sein."
-            }
-            if repository.entryURL.contains(where: \.isWhitespace) {
-                return "Repository \(row): URL darf keine Leerzeichen enthalten."
-            }
-            if !repository.entryURL.isEmpty, URL(string: repository.entryURL) == nil {
-                return "Repository \(row): Ungültige URL."
-            }
-        }
-
-        let duplicateURLs = Dictionary(grouping: repositories.map { $0.entryURL.lowercased() }) { $0 }
-            .filter { !$0.key.isEmpty && $0.value.count > 1 }
-            .map(\.key)
-            .sorted()
-        if let duplicateURL = duplicateURLs.first {
-            return "Doppelte Repository-URL: \(duplicateURL)"
-        }
-
-        return nil
-    }
-
-    private func validateMultipassServices(_ services: [MultipassServiceDraft], existingHosts: [String]) -> String? {
-        let occupiedHosts = Set(existingHosts.map { $0.lowercased() })
-        for (index, service) in services.enumerated() {
-            let row = index + 1
-            if service.vmName.isEmpty { return "Multipass Service \(row): VM Name darf nicht leer sein." }
-            if service.serviceName.isEmpty { return "Multipass Service \(row): Service Name darf nicht leer sein." }
-            if service.host.isEmpty { return "Multipass Service \(row): Host darf nicht leer sein." }
-            if service.targetPort <= 0 || service.targetPort > 65535 { return "Multipass Service \(row): Port ist ungültig." }
-            if service.idleTimeoutSeconds < 15 { return "Multipass Service \(row): Idle Timeout muss mindestens 15 Sekunden sein." }
-            if service.host.contains(where: \.isWhitespace) { return "Multipass Service \(row): Host darf keine Leerzeichen enthalten." }
-            if occupiedHosts.contains(service.host.lowercased()) {
-                return "Multipass Service \(row): Host kollidiert mit bestehender Route: \(service.host)"
-            }
-        }
-
-        let duplicates = Dictionary(grouping: services.map { $0.host.lowercased() }) { $0 }
-            .filter { !$0.key.isEmpty && $0.value.count > 1 }
-            .map(\.key)
-            .sorted()
-        if let duplicate = duplicates.first {
-            return "Doppelter Host in Multipass Services: \(duplicate)"
-        }
-
-        return nil
     }
 
     private func startRuntimePollingIfNeeded() {

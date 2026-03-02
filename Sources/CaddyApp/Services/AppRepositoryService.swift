@@ -2,66 +2,6 @@ import Foundation
 import Yams
 
 actor AppRepositoryService {
-    private struct DocumentProbe: Decodable {
-        var kind: String
-    }
-
-    private struct RepositoryIndexDocument: Decodable {
-        struct Spec: Decodable {
-            struct Repository: Decodable {
-                var id: String?
-                var name: String?
-                var baseUrl: String?
-                var indexUrl: String
-                var sourceUrl: String?
-                var enabled: Bool?
-            }
-
-            var repositories: [Repository]
-        }
-
-        var spec: Spec
-    }
-
-    private struct AppIndexDocument: Decodable {
-        struct Spec: Decodable {
-            struct Item: Decodable {
-                var key: String?
-                var url: String
-            }
-
-            var apps: [Item]
-        }
-
-        var spec: Spec
-    }
-
-    private struct OnDemandAppDocument: Decodable {
-        struct Metadata: Decodable {
-            var key: String
-            var name: String
-            var summary: String
-        }
-
-        struct Spec: Decodable {
-            var runtime: ContainerRuntimeKind
-            var unitKind: ContainerUnitKind
-            var unitName: String
-            var host: String
-            var targetHost: String
-            var targetPort: Int
-            var idleTimeoutSeconds: Int
-            var enabled: Bool
-            var startMode: OnDemandStartMode
-            var runArguments: String?
-            var runSteps: [String]?
-            var healthPath: String
-        }
-
-        var metadata: Metadata
-        var spec: Spec
-    }
-
     private struct IndexedPreset: Hashable {
         var sourceKey: String
         var preset: OnDemandAppPreset
@@ -71,7 +11,7 @@ actor AppRepositoryService {
 
     func syncPresets(from repositories: [AppRepositoryDraft]) async -> AppRepositorySyncResultWithPresets {
         let enabledRepositories = repositories
-            .map(normalizeRepository)
+            .map { $0.normalized() }
             .filter { $0.enabled && !$0.entryURL.isEmpty }
         guard !enabledRepositories.isEmpty else {
             return AppRepositorySyncResultWithPresets(
@@ -167,12 +107,12 @@ actor AppRepositoryService {
             do {
                 let appYAML = try await fetchYAML(from: appURL)
                 let appDocument = try decoder.decode(OnDemandAppDocument.self, from: appYAML)
-                guard validate(appDocument.spec) else { continue }
+                guard appDocument.spec.isValid else { continue }
 
                 let preset = OnDemandAppPreset(
                     key: appDocument.metadata.key,
                     title: appDocument.metadata.name,
-                    iconSystemName: iconName(for: appDocument.metadata.key),
+                    iconSystemName: OnDemandAppPresetIcon.forKey(appDocument.metadata.key),
                     summary: appDocument.metadata.summary,
                     app: OnDemandAppDraft(
                         name: appDocument.metadata.name,
@@ -239,52 +179,6 @@ actor AppRepositoryService {
         return URL(string: raw, relativeTo: baseURL)?.absoluteURL
     }
 
-    private func normalizeRepository(_ repository: AppRepositoryDraft) -> AppRepositoryDraft {
-        var normalized = repository
-        normalized.name = repository.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        normalized.entryURL = repository.entryURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalized
-    }
-
-    private func validate(_ spec: OnDemandAppDocument.Spec) -> Bool {
-        if spec.unitName.isEmpty || spec.host.isEmpty || spec.targetHost.isEmpty {
-            return false
-        }
-        if spec.targetPort <= 0 || spec.targetPort > 65535 {
-            return false
-        }
-        if spec.idleTimeoutSeconds < 15 {
-            return false
-        }
-        if spec.runtime == .docker && spec.unitKind == .pod {
-            return false
-        }
-        if spec.startMode == .runCommand {
-            let hasRunArguments = !(spec.runArguments?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-            let hasRunSteps = !(spec.runSteps ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.isEmpty
-            if !hasRunArguments, !hasRunSteps {
-                return false
-            }
-        }
-        return true
-    }
-
-    private func iconName(for key: String) -> String {
-        switch key.lowercased() {
-        case "loki":
-            return "text.alignleft"
-        case "grafana":
-            return "chart.xyaxis.line"
-        case "kimai":
-            return "clock.badge.checkmark"
-        case "ephe":
-            return "doc.text.magnifyingglass"
-        case "penpot":
-            return "pencil.and.ruler"
-        default:
-            return "shippingbox"
-        }
-    }
 }
 
 struct AppRepositorySyncResultWithPresets {

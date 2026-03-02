@@ -8,10 +8,13 @@ struct CaddyConfigService {
         onDemandApps: [OnDemandAppDraft],
         multipassServices: [MultipassServiceDraft]
     ) -> [ProxyRoute] {
-        customRoutes.map { $0.asProxyRoute() }
-            + onDemandApps.map { $0.asProxyRoute(gatewayPort: OnDemandAppsService.gatewayPort) }
-            + multipassServiceRoutes(from: multipassServices)
-            + multipassRoutes(from: runtimeTargets)
+        ProxyRouteFactory.build(
+            runtimeTargets: runtimeTargets,
+            customRoutes: customRoutes,
+            onDemandApps: onDemandApps,
+            multipassServices: multipassServices,
+            gatewayPort: OnDemandAppsService.gatewayPort
+        )
     }
 
     func preview(
@@ -46,10 +49,10 @@ struct CaddyConfigService {
 
         let interfaceIPv4Addresses = macInterfaceIPv4Addresses()
         for route in routes {
-            let siteHosts = siteHosts(
+            let siteHosts = TraefikAliasGenerator.hosts(
                 for: route.host,
-                interfaceIPv4Addresses: interfaceIPv4Addresses,
-                enableTraefikMeAliases: enableTraefikMeAliases
+                ips: interfaceIPv4Addresses,
+                enabled: enableTraefikMeAliases
             )
             lines.append("\(siteHosts.joined(separator: ", ")) {")
             lines.append("    tls internal")
@@ -66,82 +69,6 @@ struct CaddyConfigService {
         }
 
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
-    }
-
-    private func multipassRoutes(from targets: [RuntimeTarget]) -> [ProxyRoute] {
-        targets
-            .filter { $0.source == .multipass }
-            .flatMap { target -> [ProxyRoute] in
-                guard let vmLabel = dnsLabel(from: target.name) else { return [] }
-                guard target.address != "(no ip)" else { return [] }
-                let enabled = target.status.lowercased() == "running"
-                let apexHost = "\(vmLabel).mp.localhost"
-                return [
-                    ProxyRoute(
-                        host: apexHost,
-                        upstream: target.address,
-                        source: .multipass,
-                        enabled: enabled
-                    ),
-                    ProxyRoute(
-                        host: "*.\(apexHost)",
-                        upstream: target.address,
-                        source: .multipass,
-                        enabled: enabled
-                    )
-                ]
-            }
-    }
-
-    private func multipassServiceRoutes(from services: [MultipassServiceDraft]) -> [ProxyRoute] {
-        services.flatMap { service in
-            let direct = service.asProxyRoute(gatewayPort: OnDemandAppsService.gatewayPort)
-            let wildcard = ProxyRoute(
-                host: "*.\(service.host)",
-                upstream: direct.upstream,
-                source: .multipassService,
-                enabled: direct.enabled
-            )
-            return [direct, wildcard]
-        }
-    }
-
-    private func dnsLabel(from input: String) -> String? {
-        let lowered = input.lowercased()
-        let mapped = lowered.map { character -> Character in
-            if character.isLetter || character.isNumber || character == "-" {
-                return character
-            }
-            return "-"
-        }
-        var label = String(mapped)
-            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-
-        if label.isEmpty { return nil }
-        if label.count > 63 {
-            label = String(label.prefix(63)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        }
-        return label.isEmpty ? nil : label
-    }
-
-    private func siteHosts(
-        for host: String,
-        interfaceIPv4Addresses: [String],
-        enableTraefikMeAliases: Bool
-    ) -> [String] {
-        var hosts: [String] = [host]
-        guard enableTraefikMeAliases, host.hasSuffix(".localhost"), !host.contains("*") else { return hosts }
-
-        let baseHost = String(host.dropLast(".localhost".count))
-        guard !baseHost.isEmpty else { return hosts }
-
-        for ipAddress in interfaceIPv4Addresses {
-            hosts.append("\(baseHost).\(ipAddress).traefik.me")
-        }
-
-        var seen = Set<String>()
-        return hosts.filter { seen.insert($0).inserted }
     }
 
     private func macInterfaceIPv4Addresses() -> [String] {

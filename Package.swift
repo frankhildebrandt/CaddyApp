@@ -22,6 +22,12 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
+        ),
+        .testTarget(
+            name: "CaddyAppTests",
+            dependencies: [
+                "CaddyApp"
+            ]
         )
     ]
 )
