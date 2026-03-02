@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-02-27
+- Last Updated: 2026-03-02
 
 ## Goal
 
@@ -51,3 +51,4 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - 2026-02-27: Removed global `*.localhost` placeholder block so each configured subdomain receives its own TLS certificate (`tls internal`).
 - 2026-02-27: Added automatic `traefik.me` host aliases for active macOS interface IPv4 addresses on every `*.localhost` route.
 - 2026-02-27: Enabled debounced auto-save/apply for route edits so no manual save button is required for host/upstream changes.
+- 2026-03-02: Added automatic `caddy fmt --overwrite` after Caddyfile write so runtime logs no longer warn about unformatted generated input.

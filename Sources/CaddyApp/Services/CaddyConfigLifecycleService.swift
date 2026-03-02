@@ -20,11 +20,17 @@ struct CaddyConfigLifecycleService {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try preview.generatedCaddyfile.write(to: fileURL, atomically: true, encoding: .utf8)
+            let formatResult = formatCaddyfile(at: preview.caddyfilePath)
+            if !formatResult.isSuccess {
+                AppLogService.logError("caddy fmt failed for \(preview.caddyfilePath): \(combinedOutput(from: formatResult))")
+            }
+            let formatOutput = combinedOutput(from: formatResult)
+            let output = formatOutput.isEmpty ? "" : "caddy fmt output:\n\(formatOutput)"
             return ConfigOperationResult(
                 kind: .write,
                 succeeded: true,
                 message: "Caddyfile written to \(preview.caddyfilePath)",
-                output: "",
+                output: output,
                 performedAt: Date()
             )
         } catch {
@@ -229,6 +235,10 @@ struct CaddyConfigLifecycleService {
         return lowered.contains("connection refused")
             || lowered.contains("failed to connect to admin endpoint")
             || lowered.contains("sending configuration to instance")
+    }
+
+    private func formatCaddyfile(at path: String) -> CommandResult {
+        shell.runShell("caddy fmt --overwrite '\(escape(path))'")
     }
 
     private func escape(_ path: String) -> String {
