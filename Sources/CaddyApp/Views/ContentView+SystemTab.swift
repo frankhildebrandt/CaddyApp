@@ -1,7 +1,11 @@
 import SwiftUI
 
-extension ContentView {
-    func systemSection(_ snapshot: DashboardSnapshot) -> some View {
+struct SystemTabView: View {
+    let snapshot: DashboardSnapshot
+    @ObservedObject var viewModel: DashboardViewModel
+    @Binding var showCaddyUpdateConfirmation: Bool
+
+    var body: some View {
         GroupBox("Caddy / TLS") {
             VStack(alignment: .leading, spacing: 10) {
                 LabeledContent("Caddy installed") {
@@ -163,6 +167,17 @@ extension ContentView {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 4)
+        }
+    }
+
+    private func tlsTrustColor(_ status: CertificateTrustStatus) -> Color {
+        switch status {
+        case .trusted:
+            return .green
+        case .notTrusted:
+            return .orange
+        case .notChecked, .unknown:
+            return .secondary
         }
     }
 }

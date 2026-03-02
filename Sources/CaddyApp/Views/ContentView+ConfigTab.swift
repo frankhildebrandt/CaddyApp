@@ -1,7 +1,11 @@
 import SwiftUI
 
-extension ContentView {
-    func configSection(_ snapshot: DashboardSnapshot) -> some View {
+struct ConfigTabView: View {
+    let snapshot: DashboardSnapshot
+    @ObservedObject var viewModel: DashboardViewModel
+    @Binding var showReloadConfigConfirmation: Bool
+
+    var body: some View {
         GroupBox("Reverse Proxy Configuration Preview") {
             VStack(alignment: .leading, spacing: 10) {
                 LabeledContent("Managed routes") {

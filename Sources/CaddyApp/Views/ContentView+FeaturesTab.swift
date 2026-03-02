@@ -1,7 +1,9 @@
 import SwiftUI
 
-extension ContentView {
-    func featureSection(_ snapshot: DashboardSnapshot) -> some View {
+struct FeaturesTabView: View {
+    let snapshot: DashboardSnapshot
+
+    var body: some View {
         GroupBox("Feature Progress") {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(snapshot.features) { feature in
@@ -32,6 +34,15 @@ extension ContentView {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 4)
+        }
+    }
+
+    private func statusColor(_ status: FeatureStatus) -> Color {
+        switch status {
+        case .planned: return .gray
+        case .inProgress: return .orange
+        case .done: return .green
+        case .blocked: return .red
         }
     }
 }

@@ -197,13 +197,15 @@ struct ContentView: View {
                 if let snapshot = viewModel.snapshot {
                     switch selectedTab ?? .dashboard {
                     case .dashboard:
-                        dashboardSection(snapshot)
-                        warningSection(snapshot.warnings)
-                        autoSetupSection(snapshot.autoSetupReport)
+                        DashboardTabView(snapshot: snapshot, openURLAction: openURL)
                     case .caddyTLS:
-                        systemSection(snapshot)
+                        SystemTabView(
+                            snapshot: snapshot,
+                            viewModel: viewModel,
+                            showCaddyUpdateConfirmation: $showCaddyUpdateConfirmation
+                        )
                     case .runtime:
-                        runtimeSection(snapshot)
+                        RuntimeTabView(snapshot: snapshot)
                     case .multipass:
                         movedToConfigurationDialogView(
                             title: "Services wurden verschoben",
@@ -223,17 +225,21 @@ struct ContentView: View {
                             pane: .customConfig
                         )
                     case .config:
-                        configSection(snapshot)
+                        ConfigTabView(
+                            snapshot: snapshot,
+                            viewModel: viewModel,
+                            showReloadConfigConfirmation: $showReloadConfigConfirmation
+                        )
                     case .logs:
-                        loggingSection()
+                        LogsTabView(viewModel: viewModel)
                     case .features:
-                        featureSection(snapshot)
+                        FeaturesTabView(snapshot: snapshot)
                     }
                 } else if viewModel.isLoading {
                     appSkeletonState
                         .padding(.top, 6)
                 } else if (selectedTab ?? .dashboard) == .logs {
-                    loggingSection()
+                    LogsTabView(viewModel: viewModel)
                 } else {
                     Text("No data loaded yet")
                         .foregroundStyle(.secondary)
@@ -351,25 +357,6 @@ struct ContentView: View {
         }
     }
 
-    func filteredLogs(_ logText: String, query: String) -> String {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return logText }
-        let needle = trimmed.lowercased()
-        return logText
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { $0.lowercased().contains(needle) }
-            .joined(separator: "\n")
-    }
-
-    func statusColor(_ status: FeatureStatus) -> Color {
-        switch status {
-        case .planned: return .gray
-        case .inProgress: return .orange
-        case .done: return .green
-        case .blocked: return .red
-        }
-    }
-
     var integerFormatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .none
@@ -389,22 +376,6 @@ struct ContentView: View {
         }
     }
 
-    func tlsTrustColor(_ status: CertificateTrustStatus) -> Color {
-        switch status {
-        case .trusted:
-            return .green
-        case .notTrusted:
-            return .orange
-        case .notChecked, .unknown:
-            return .secondary
-        }
-    }
-
-    func isCertificateValid(_ snapshot: DashboardSnapshot) -> Bool {
-        snapshot.tlsStatus.rootCertificatePresent
-            && snapshot.tlsStatus.systemKeychainTrustStatus == .trusted
-    }
-
     func multipassAutoHost(for name: String) -> String? {
         let lowered = name.lowercased()
         let mapped = lowered.map { character -> Character in
@@ -419,32 +390,6 @@ struct ContentView: View {
         guard !label.isEmpty else { return nil }
         let truncated = String(label.prefix(63))
         return "\(truncated).mp.localhost"
-    }
-
-    func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {
-        switch target.source {
-        case .multipass:
-            guard let host = multipassAutoHost(for: target.name) else { return nil }
-            return URL(string: "https://\(host)")
-        case .podman:
-            if target.address.hasPrefix("http://") || target.address.hasPrefix("https://") {
-                return URL(string: target.address)
-            }
-
-            let port = target.address.split(separator: ":").last.flatMap { Int($0) }
-            let scheme = (port == 443 || port == 8443) ? "https" : "http"
-            return URL(string: "\(scheme)://\(target.address)")
-        case .manual:
-            return nil
-        case .onDemand:
-            return nil
-        case .multipassService:
-            return nil
-        }
-    }
-
-    func runtimeDashboardURLDisplayString(for target: RuntimeTarget) -> String? {
-        runtimeDashboardURL(for: target)?.absoluteString
     }
 }
 

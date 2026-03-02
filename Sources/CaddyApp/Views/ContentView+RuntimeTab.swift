@@ -1,7 +1,9 @@
 import SwiftUI
 
-extension ContentView {
-    func runtimeSection(_ snapshot: DashboardSnapshot) -> some View {
+struct RuntimeTabView: View {
+    let snapshot: DashboardSnapshot
+
+    var body: some View {
         let podmanTargets = snapshot.runtimeTargets.filter { $0.source == .podman }
 
         return VStack(alignment: .leading, spacing: 16) {
@@ -35,5 +37,4 @@ extension ContentView {
             }
         }
     }
-
 }

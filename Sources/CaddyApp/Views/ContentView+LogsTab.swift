@@ -1,7 +1,9 @@
 import SwiftUI
 
-extension ContentView {
-    func loggingSection() -> some View {
+struct LogsTabView: View {
+    @ObservedObject var viewModel: DashboardViewModel
+
+    var body: some View {
         let filteredLogText = filteredLogs(viewModel.appLogText, query: viewModel.logFilterQuery)
 
         return GroupBox("Logging / Debug") {
@@ -58,5 +60,15 @@ extension ContentView {
         .onAppear {
             viewModel.refreshLogs()
         }
+    }
+
+    private func filteredLogs(_ logText: String, query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return logText }
+        let needle = trimmed.lowercased()
+        return logText
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { $0.lowercased().contains(needle) }
+            .joined(separator: "\n")
     }
 }
