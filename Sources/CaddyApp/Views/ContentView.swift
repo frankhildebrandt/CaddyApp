@@ -263,40 +263,39 @@ struct ContentView: View {
         NavigationSplitView {
             List(selection: $selectedConfigDialogPane) {
                 ForEach(ConfigDialogPane.allCases) { pane in
-                    Label(pane.title, systemImage: pane.systemImage)
-                        .tag(pane)
+                    NavigationLink(value: pane) {
+                        Label(pane.title, systemImage: pane.systemImage)
+                    }
                 }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch selectedConfigDialogPane {
-                    case .general:
-                        settingsGeneralPane
-                    case .onDemandApps:
-                        if let snapshot = viewModel.snapshot {
-                            onDemandAppsSection(snapshot)
-                        } else {
-                            appSkeletonState
-                        }
-                    case .services:
-                        if let snapshot = viewModel.snapshot {
-                            multipassSection(snapshot)
-                        } else {
-                            appSkeletonState
-                        }
-                    case .customConfig:
-                        if let snapshot = viewModel.snapshot {
-                            customConfigSection(snapshot)
-                        } else {
-                            appSkeletonState
-                        }
+            List {
+                switch selectedConfigDialogPane {
+                case .general:
+                    settingsGeneralPane
+                case .onDemandApps:
+                    if let snapshot = viewModel.snapshot {
+                        onDemandAppsSection(snapshot)
+                    } else {
+                        appSkeletonState
+                    }
+                case .services:
+                    if let snapshot = viewModel.snapshot {
+                        multipassSection(snapshot)
+                    } else {
+                        appSkeletonState
+                    }
+                case .customConfig:
+                    if let snapshot = viewModel.snapshot {
+                        customConfigSection(snapshot)
+                    } else {
+                        appSkeletonState
                     }
                 }
-                .padding(20)
             }
+            .listStyle(.automatic)
         }
         .frame(minWidth: 1100, minHeight: 760)
     }
@@ -314,11 +313,8 @@ struct ContentView: View {
     }
 
     private var settingsGeneralPane: some View {
-        GroupBox("Allgemein") {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Section("Allgemein") {
+            Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
         }
     }
 
