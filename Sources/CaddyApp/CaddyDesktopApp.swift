@@ -121,22 +121,8 @@ private struct AppSettingsView: View {
     @Binding var hideWindowToMenuBarOnClose: Bool
 
     var body: some View {
-        TabView {
-            Form {
-                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
-            }
-            .formStyle(.grouped)
-            .padding(20)
-            .tabItem {
-                Label("Allgemein", systemImage: "gearshape")
-            }
-
-            ContentView(viewModel: viewModel)
-                .settingsConfigurationContent
-                .tabItem {
-                    Label("Konfiguration", systemImage: "slider.horizontal.3")
-                }
-        }
-        .frame(minWidth: 1050, minHeight: 760)
+        ContentView(viewModel: viewModel)
+            .settingsConfigurationContent
+            .frame(minWidth: 1050, minHeight: 760)
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.openURL) var openURL
     enum ConfigDialogPane: String, CaseIterable, Identifiable {
+        case general
         case onDemandApps = "on_demand_apps"
         case services
         case customConfig = "custom_config"
@@ -11,6 +12,7 @@ struct ContentView: View {
 
         var title: String {
             switch self {
+            case .general: return "Allgemein"
             case .onDemandApps: return "On-Demand Apps"
             case .services: return "Services"
             case .customConfig: return "Custom Config"
@@ -19,6 +21,7 @@ struct ContentView: View {
 
         var systemImage: String {
             switch self {
+            case .general: return "gearshape"
             case .onDemandApps: return "bolt.badge.clock"
             case .services: return "shippingbox"
             case .customConfig: return "slider.horizontal.3"
@@ -94,7 +97,7 @@ struct ContentView: View {
     @State var onDemandEventLogByAppID: [UUID: String] = [:]
     @State var onDemandLoadingByAppID: [UUID: Bool] = [:]
     @State var showConfigurationDialog = false
-    @State var selectedConfigDialogPane: ConfigDialogPane? = .onDemandApps
+    @State var selectedConfigDialogPane: ConfigDialogPane = .general
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,14 +264,17 @@ struct ContentView: View {
             List(selection: $selectedConfigDialogPane) {
                 ForEach(ConfigDialogPane.allCases) { pane in
                     Label(pane.title, systemImage: pane.systemImage)
-                        .tag(Optional(pane))
+                        .tag(pane)
                 }
             }
+            .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    switch selectedConfigDialogPane ?? .onDemandApps {
+                    switch selectedConfigDialogPane {
+                    case .general:
+                        settingsGeneralPane
                     case .onDemandApps:
                         if let snapshot = viewModel.snapshot {
                             onDemandAppsSection(snapshot)
@@ -305,6 +311,15 @@ struct ContentView: View {
                         }
                     }
             }
+    }
+
+    private var settingsGeneralPane: some View {
+        GroupBox("Allgemein") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
 
