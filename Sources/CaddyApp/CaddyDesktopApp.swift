@@ -27,7 +27,7 @@ struct CaddyDesktopApp: App {
         }
 
         Settings {
-            SettingsView(
+            AppSettingsView(
                 viewModel: viewModel,
                 hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
             )
@@ -116,23 +116,24 @@ private struct MenuBarStatusView: View {
     }
 }
 
-private struct SettingsView: View {
+private struct AppSettingsView: View {
     @ObservedObject var viewModel: DashboardViewModel
     @Binding var hideWindowToMenuBarOnClose: Bool
 
     var body: some View {
-        Form {
-            Section("Allgemein") {
-                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
-            }
-
-            Section("Aktionen") {
-                Button("Status neu laden") {
-                    viewModel.refresh()
+        VStack(spacing: 0) {
+            Form {
+                Section("Allgemein") {
+                    Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
                 }
             }
+            .padding(20)
+
+            Divider()
+
+            ContentView(viewModel: viewModel)
+                .settingsConfigurationContent
         }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 220)
+        .frame(minWidth: 1100, minHeight: 820)
     }
 }

@@ -50,9 +50,6 @@ struct ContentView: View {
         case dashboard
         case caddyTLS = "caddy_tls"
         case runtime
-        case multipass
-        case onDemandApps = "on_demand_apps"
-        case custom
         case config
         case logs
         case features
@@ -64,9 +61,6 @@ struct ContentView: View {
             case .dashboard: return "Dashboard"
             case .caddyTLS: return "Caddy & TLS"
             case .runtime: return "Runtime"
-            case .multipass: return "Multipass"
-            case .onDemandApps: return "On-Demand Apps"
-            case .custom: return "Custom"
             case .config: return "Config"
             case .logs: return "Logging"
             case .features: return "Features"
@@ -78,9 +72,6 @@ struct ContentView: View {
             case .dashboard: return "rectangle.grid.2x2"
             case .caddyTLS: return "lock.shield"
             case .runtime: return "server.rack"
-            case .multipass: return "shippingbox"
-            case .onDemandApps: return "bolt.badge.clock"
-            case .custom: return "slider.horizontal.3"
             case .config: return "doc.text"
             case .logs: return "terminal"
             case .features: return "list.bullet.clipboard"
@@ -133,12 +124,8 @@ struct ContentView: View {
         .onChange(of: viewModel.enableTraefikMeAliases) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
-        .onChange(of: selectedTab) { _, newTab in
-            if newTab == .onDemandApps {
-                selectedOnDemandAppID = nil
-            } else {
-                onDemandShellSession.stop()
-            }
+        .onChange(of: selectedTab) { _, _ in
+            onDemandShellSession.stop()
         }
         .background(MainWindowDelegateInstaller())
         .sheet(isPresented: $showOnDemandPresetPicker) {
@@ -148,9 +135,6 @@ struct ContentView: View {
                         viewModel.refreshAppRepositoryPresets()
                     }
                 }
-        }
-        .sheet(isPresented: $showConfigurationDialog) {
-            configurationDialog
         }
         .confirmationDialog(
             "Caddy aktualisieren?",
@@ -206,24 +190,6 @@ struct ContentView: View {
                         )
                     case .runtime:
                         RuntimeTabView(snapshot: snapshot)
-                    case .multipass:
-                        movedToConfigurationDialogView(
-                            title: "Services wurden verschoben",
-                            description: "Multipass- und Service-Konfigurationen sind jetzt im zentralen Konfigurationsdialog.",
-                            pane: .services
-                        )
-                    case .onDemandApps:
-                        movedToConfigurationDialogView(
-                            title: "On-Demand Konfiguration wurde verschoben",
-                            description: "On-Demand-Apps werden jetzt im zentralen Konfigurationsdialog verwaltet.",
-                            pane: .onDemandApps
-                        )
-                    case .custom:
-                        movedToConfigurationDialogView(
-                            title: "Custom Config wurde verschoben",
-                            description: "Custom Routes und zusätzliche Caddyfile-Konfiguration liegen jetzt im zentralen Konfigurationsdialog.",
-                            pane: .customConfig
-                        )
                     case .config:
                         ConfigTabView(
                             snapshot: snapshot,
@@ -272,9 +238,9 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             Button {
-                showConfigurationDialog = true
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             } label: {
-                Label("Konfiguration", systemImage: "gearshape")
+                Label("Settings", systemImage: "gearshape")
             }
             .buttonStyle(.bordered)
             Toggle("Schließen versteckt", isOn: $hideWindowToMenuBarOnClose)
@@ -327,6 +293,18 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 1100, minHeight: 760)
+    }
+
+    var settingsConfigurationContent: some View {
+        configurationDialog
+            .sheet(isPresented: $showOnDemandPresetPicker) {
+                onDemandPresetPickerSheet
+                    .onAppear {
+                        if !viewModel.isRefreshingAppRepositories, viewModel.remoteOnDemandPresets.isEmpty {
+                            viewModel.refreshAppRepositoryPresets()
+                        }
+                    }
+            }
     }
 
 

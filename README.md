@@ -15,6 +15,7 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 
 - SwiftUI-Dashboard mit Menubar/Systray-Integration
 - App-Settings via macOS-Standard `Apple-,` sowie globales App-Menue (`CaddyApp`)
+- Konfigurationsverwaltung (On-Demand Apps, Services, Custom Config) zentral in den CaddyApp Settings
 - Caddy-Erkennung inkl. Install-/Update-Flow
   - Homebrew zuerst
   - Fallback auf app-verwaltetes Binary unter
