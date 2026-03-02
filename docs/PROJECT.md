@@ -19,6 +19,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Dashboard runtime polling interval tuned to reduce idle CPU pressure.
 - Loading UX standardized with skeleton placeholders and inline skeleton activity states.
 - Global app menu plus native macOS settings window (`Apple-,`) added.
+- UI tab composition split into dedicated tab files (`ContentView+*Tab.swift`) so each major tab/config area is independently maintainable.
 
 ## Repository Structure
 
