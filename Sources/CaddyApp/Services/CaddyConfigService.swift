@@ -14,9 +14,17 @@ struct CaddyConfigService {
             + multipassRoutes(from: runtimeTargets)
     }
 
-    func preview(for routes: [ProxyRoute], additionalCaddyfileConfig: String) -> CaddyConfigPreview {
+    func preview(
+        for routes: [ProxyRoute],
+        additionalCaddyfileConfig: String,
+        enableTraefikMeAliases: Bool
+    ) -> CaddyConfigPreview {
         let enabledRoutes = routes.filter(\.enabled)
-        let caddyfile = generateCaddyfile(for: enabledRoutes, additionalCaddyfileConfig: additionalCaddyfileConfig)
+        let caddyfile = generateCaddyfile(
+            for: enabledRoutes,
+            additionalCaddyfileConfig: additionalCaddyfileConfig,
+            enableTraefikMeAliases: enableTraefikMeAliases
+        )
 
         return CaddyConfigPreview(
             caddyfilePath: AppPaths.appSupportDirectory.appendingPathComponent("Caddyfile", isDirectory: false).path,
@@ -25,7 +33,11 @@ struct CaddyConfigService {
         )
     }
 
-    func generateCaddyfile(for routes: [ProxyRoute], additionalCaddyfileConfig: String) -> String {
+    func generateCaddyfile(
+        for routes: [ProxyRoute],
+        additionalCaddyfileConfig: String,
+        enableTraefikMeAliases: Bool
+    ) -> String {
         var lines: [String] = []
         lines.append("{")
         lines.append("    admin localhost:2019")
@@ -34,7 +46,11 @@ struct CaddyConfigService {
 
         let interfaceIPv4Addresses = macInterfaceIPv4Addresses()
         for route in routes {
-            let siteHosts = siteHosts(for: route.host, interfaceIPv4Addresses: interfaceIPv4Addresses)
+            let siteHosts = siteHosts(
+                for: route.host,
+                interfaceIPv4Addresses: interfaceIPv4Addresses,
+                enableTraefikMeAliases: enableTraefikMeAliases
+            )
             lines.append("\(siteHosts.joined(separator: ", ")) {")
             lines.append("    tls internal")
             lines.append("    reverse_proxy \(route.upstream)")
@@ -102,9 +118,13 @@ struct CaddyConfigService {
         return label.isEmpty ? nil : label
     }
 
-    private func siteHosts(for host: String, interfaceIPv4Addresses: [String]) -> [String] {
+    private func siteHosts(
+        for host: String,
+        interfaceIPv4Addresses: [String],
+        enableTraefikMeAliases: Bool
+    ) -> [String] {
         var hosts: [String] = [host]
-        guard host.hasSuffix(".localhost"), !host.contains("*") else { return hosts }
+        guard enableTraefikMeAliases, host.hasSuffix(".localhost"), !host.contains("*") else { return hosts }
 
         let baseHost = String(host.dropLast(".localhost".count))
         guard !baseHost.isEmpty else { return hosts }

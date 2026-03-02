@@ -34,6 +34,11 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
   - VM auto-start/auto-stop behavior
   - systemd unit configuration and control (`start` / `restart` / `stop`)
 
+## Route Alias Toggle
+
+- `.localhost` routes can optionally emit additional `*.traefik.me` aliases (`<host>.<ip>.traefik.me`) for active macOS IPv4 interfaces.
+- The behavior is controlled by persisted custom config (`enableTraefikMeAliases`) and can be toggled in the Custom settings UI.
+
 ## Build and Run
 
 - `make build`: debug build + app bundle generation

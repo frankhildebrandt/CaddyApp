@@ -60,6 +60,7 @@ struct CustomConfigSettings: Codable {
     var onDemandApps: [OnDemandAppDraft]
     var multipassServices: [MultipassServiceDraft]
     var appRepositories: [AppRepositoryDraft]
+    var enableTraefikMeAliases: Bool
     var additionalCaddyfileConfig: String
 
     static let `default` = CustomConfigSettings(
@@ -70,6 +71,7 @@ struct CustomConfigSettings: Codable {
         onDemandApps: [],
         multipassServices: [],
         appRepositories: AppRepositoryDraft.defaultList,
+        enableTraefikMeAliases: true,
         additionalCaddyfileConfig: ""
     )
 
@@ -78,6 +80,7 @@ struct CustomConfigSettings: Codable {
         case onDemandApps
         case multipassServices
         case appRepositories
+        case enableTraefikMeAliases
         case additionalCaddyfileConfig
     }
 
@@ -86,12 +89,14 @@ struct CustomConfigSettings: Codable {
         onDemandApps: [OnDemandAppDraft],
         multipassServices: [MultipassServiceDraft],
         appRepositories: [AppRepositoryDraft],
+        enableTraefikMeAliases: Bool,
         additionalCaddyfileConfig: String
     ) {
         self.customRoutes = customRoutes
         self.onDemandApps = onDemandApps
         self.multipassServices = multipassServices
         self.appRepositories = appRepositories
+        self.enableTraefikMeAliases = enableTraefikMeAliases
         self.additionalCaddyfileConfig = additionalCaddyfileConfig
     }
 
@@ -105,6 +110,8 @@ struct CustomConfigSettings: Codable {
             ?? Self.default.multipassServices
         appRepositories = try container.decodeIfPresent([AppRepositoryDraft].self, forKey: .appRepositories)
             ?? AppRepositoryDraft.defaultList
+        enableTraefikMeAliases = try container.decodeIfPresent(Bool.self, forKey: .enableTraefikMeAliases)
+            ?? Self.default.enableTraefikMeAliases
         additionalCaddyfileConfig = try container.decodeIfPresent(String.self, forKey: .additionalCaddyfileConfig)
             ?? Self.default.additionalCaddyfileConfig
     }

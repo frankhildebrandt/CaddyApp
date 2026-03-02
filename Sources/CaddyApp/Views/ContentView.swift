@@ -104,6 +104,9 @@ struct ContentView: View {
         .onChange(of: viewModel.appRepositories) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
+        .onChange(of: viewModel.enableTraefikMeAliases) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .onDemandApps {
                 selectedOnDemandAppID = nil
@@ -911,6 +914,11 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Eigene Hosts werden mit den automatisch erkannten Runtime-Routen kombiniert.")
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Traefik.me-Aliase fuer .localhost-Hosts aktivieren", isOn: $viewModel.enableTraefikMeAliases)
+                        .toggleStyle(.checkbox)
+                    Text("Erzeugt pro Host zusaetzliche Aliase wie <host>.<ip>.traefik.me (nur fuer nicht-Wildcard .localhost-Hosts).")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
 
                     if viewModel.customRoutes.isEmpty {

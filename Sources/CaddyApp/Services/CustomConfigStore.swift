@@ -29,6 +29,7 @@ struct CustomConfigStore {
             onDemandApps: settings.onDemandApps,
             multipassServices: settings.multipassServices,
             appRepositories: settings.appRepositories,
+            enableTraefikMeAliases: settings.enableTraefikMeAliases,
             additionalCaddyfileConfig: settings.additionalCaddyfileConfig
         )
     }

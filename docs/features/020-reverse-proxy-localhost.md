@@ -27,12 +27,13 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - [x] App can trigger `caddy reload` using the generated config (basic bootstrap flow).
 - [x] App auto-reloads Caddy when the generated config changes and validates successfully.
 - [x] App writes config to disk and reloads Caddy safely with confirmations/rollback handling.
+- [x] `traefik.me`-Alias-Hosts fuer `.localhost`-Routen sind per Toggle ein-/ausschaltbar.
 
 ## Implementation Notes
 
 - Current preview uses a fixed path target in `~/Library/Application Support/CaddyApp/Caddyfile`.
 - Caddyfile generation creates explicit host site blocks only, so certificate issuance is host-specific per subdomain.
-- For hosts ending in `.localhost`, Caddyfile generation adds additional aliases in the form `<host-prefix>.<mac-interface-ip>.traefik.me` for active macOS IPv4 interfaces.
+- Optional: For hosts ending in `.localhost`, Caddyfile generation adds additional aliases in the form `<host-prefix>.<mac-interface-ip>.traefik.me` for active macOS IPv4 interfaces (toggle in Custom settings).
 - Next step is a config writer plus `caddy validate` and `caddy reload` integration.
 - `Validate` and `Reload` now write the current preview to disk first to avoid missing-file errors on first use.
 - `Reload` falls back to `caddy start` when no running Caddy instance is listening on the admin endpoint.
@@ -52,3 +53,4 @@ Manage reverse proxy routes for local services using localhost subdomains and ge
 - 2026-02-27: Added automatic `traefik.me` host aliases for active macOS interface IPv4 addresses on every `*.localhost` route.
 - 2026-02-27: Enabled debounced auto-save/apply for route edits so no manual save button is required for host/upstream changes.
 - 2026-03-02: Added automatic `caddy fmt --overwrite` after Caddyfile write so runtime logs no longer warn about unformatted generated input.
+- 2026-03-02: Added persisted toggle to enable/disable automatic `*.traefik.me` alias generation for `.localhost` hosts.

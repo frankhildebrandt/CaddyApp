@@ -20,6 +20,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var onDemandApps: [OnDemandAppDraft]
     @Published var multipassServices: [MultipassServiceDraft]
     @Published var appRepositories: [AppRepositoryDraft]
+    @Published var enableTraefikMeAliases: Bool
     @Published var customAdditionalCaddyfileConfig: String
     @Published private(set) var isSavingCustomConfig = false
     @Published private(set) var lastCustomConfigSaveResult: CustomConfigSaveResult?
@@ -73,6 +74,7 @@ final class DashboardViewModel: ObservableObject {
         self.onDemandApps = initialCustomConfig.onDemandApps
         self.multipassServices = initialCustomConfig.multipassServices
         self.appRepositories = initialCustomConfig.appRepositories
+        self.enableTraefikMeAliases = initialCustomConfig.enableTraefikMeAliases
         self.customAdditionalCaddyfileConfig = initialCustomConfig.additionalCaddyfileConfig
     }
 
@@ -336,6 +338,7 @@ final class DashboardViewModel: ObservableObject {
                     onDemandApps: existingSettings.onDemandApps,
                     multipassServices: existingSettings.multipassServices,
                     appRepositories: appRepositories,
+                    enableTraefikMeAliases: enableTraefikMeAliases,
                     additionalCaddyfileConfig: additionalConfig
                 )
                 try self.customConfigStore.save(settings)
@@ -442,7 +445,8 @@ final class DashboardViewModel: ObservableObject {
         if normalizedRoutes == existingSettings.customRoutes,
            normalizedOnDemandApps == existingSettings.onDemandApps,
            normalizedMultipassServices == existingSettings.multipassServices,
-           normalizedRepositories == existingSettings.appRepositories
+           normalizedRepositories == existingSettings.appRepositories,
+           enableTraefikMeAliases == existingSettings.enableTraefikMeAliases
         {
             return
         }
@@ -461,6 +465,7 @@ final class DashboardViewModel: ObservableObject {
             onDemandApps: normalizedOnDemandApps,
             multipassServices: normalizedMultipassServices,
             appRepositories: normalizedRepositories,
+            enableTraefikMeAliases: enableTraefikMeAliases,
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
 

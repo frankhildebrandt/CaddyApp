@@ -20,6 +20,7 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
     `~/Library/Application Support/CaddyApp/bin/caddy`
 - Caddy-Release-Monitoring (GitHub API)
 - Generierte Caddy-Konfiguration fuer Host-Routen auf `*.localhost`
+- Optional zuschaltbare `*.traefik.me`-Alias-Hosts pro `*.localhost`-Route
 - Auto-Persistenz + Auto-Validate + Auto-Reload bei gueltigen Aenderungen
 - Caddy-Runtime-Steuerung (Start/Stop/Reload) inkl. Fallback-Start
 - Privilegierte Aktionen ueber macOS-Admin-Dialog (kein versteckter Passwortprompt)

@@ -40,7 +40,8 @@ actor DashboardService {
         )
         let configPreview = configService.preview(
             for: routes,
-            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig
+            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig,
+            enableTraefikMeAliases: customConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
 
@@ -83,7 +84,8 @@ actor DashboardService {
         )
         let configPreview = configService.preview(
             for: routes,
-            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig
+            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig,
+            enableTraefikMeAliases: customConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
         let warnings = warnings(
