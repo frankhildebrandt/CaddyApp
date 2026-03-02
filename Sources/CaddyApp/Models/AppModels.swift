@@ -413,6 +413,12 @@ enum MultipassServiceControlAction {
     case stopSystemd
 }
 
+enum MultipassVMControlAction {
+    case start
+    case stop
+    case forceStop
+}
+
 struct OnDemandAppPreset: Identifiable, Hashable {
     var id: String { key }
     var key: String

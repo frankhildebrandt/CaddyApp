@@ -149,6 +149,41 @@ actor OnDemandAppsService {
         return OnDemandAppControlResult(succeeded: result.succeeded, message: result.message, performedAt: Date())
     }
 
+    func controlMultipassVM(vmName: String, action: MultipassVMControlAction) async -> OnDemandAppControlResult {
+        let normalizedName = vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty else {
+            return OnDemandAppControlResult(succeeded: false, message: "VM name is empty", performedAt: Date())
+        }
+
+        let command: String
+        let actionLabel: String
+        switch action {
+        case .start:
+            command = "multipass start \(shellEscapeArgument(normalizedName))"
+            actionLabel = "start"
+        case .stop:
+            command = "multipass stop \(shellEscapeArgument(normalizedName))"
+            actionLabel = "stop"
+        case .forceStop:
+            command = "multipass stop --force \(shellEscapeArgument(normalizedName))"
+            actionLabel = "force-stop"
+        }
+
+        let result = runner.runShell(command)
+        if result.isSuccess {
+            return OnDemandAppControlResult(
+                succeeded: true,
+                message: "VM '\(normalizedName)' \(actionLabel) succeeded",
+                performedAt: Date()
+            )
+        }
+        return OnDemandAppControlResult(
+            succeeded: false,
+            message: commandDetail(result, fallback: "VM '\(normalizedName)' \(actionLabel) failed"),
+            performedAt: Date()
+        )
+    }
+
     func deleteRuntimeUnits(for apps: [OnDemandAppDraft]) -> [OnDemandAppControlResult] {
         apps.map { app in
             deleteRuntimeUnit(app)

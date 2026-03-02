@@ -35,6 +35,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - [x] App can auto-stop Multipass VMs after idle timeout (optional, per service) and optionally stop systemd units.
 - [x] App imports service definitions from `/etc/caddy-app.yaml` on Multipass VMs and marks them as YAML-managed.
 - [x] Multipass management was moved into a dedicated UI tab page, while Runtime focuses on non-Multipass targets.
+- [x] Multipass UI renders VM-specific cards with VM runtime controls (`start` / `stop` / `force-stop`) and per-card service add action.
 
 ## Implementation Notes
 
@@ -110,3 +111,4 @@ services:
 - 2026-02-27: Added YAML auto-import from VM `/etc/caddy-app.yaml` into persistent app config (YAML-managed entries).
 - 2026-02-27: Prevented startup side-effect where YAML import could wake stopped VMs; importer now skips non-running VMs.
 - 2026-03-02: Split Multipass UI into its own tab page and moved runtime-level Multipass controls/discovery out of the generic Runtime tab.
+- 2026-03-02: Reworked Multipass tab to VM cards, added direct VM runtime controls (including force-stop), and moved "Service hinzufügen" into each VM card.

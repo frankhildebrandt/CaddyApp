@@ -31,6 +31,8 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var lastOnDemandAppControlResult: OnDemandAppControlResult?
     @Published private(set) var isChangingMultipassServiceRuntime = false
     @Published private(set) var lastMultipassServiceControlResult: OnDemandAppControlResult?
+    @Published private(set) var isChangingMultipassVMRuntime = false
+    @Published private(set) var lastMultipassVMControlResult: OnDemandAppControlResult?
     @Published private(set) var remoteOnDemandPresets: [OnDemandAppPreset] = []
     @Published private(set) var isRefreshingAppRepositories = false
     @Published private(set) var lastRepositorySyncResult: AppRepositorySyncResult?
@@ -232,6 +234,37 @@ final class DashboardViewModel: ObservableObject {
                 vmName: "",
                 serviceName: "",
                 host: "",
+                targetPort: 8080
+            )
+        )
+    }
+
+    func addMultipassService(forVMName vmName: String) {
+        let normalizedVMName = vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedVMName.isEmpty else {
+            addMultipassService()
+            return
+        }
+
+        let vmLabel = sanitizeDNSLabel(normalizedVMName) ?? "vm"
+        let existingNames = Set(
+            multipassServices
+                .filter { $0.vmName.caseInsensitiveCompare(normalizedVMName) == .orderedSame }
+                .map { $0.serviceName.lowercased() }
+        )
+
+        var serviceName = "service"
+        var suffix = 1
+        while existingNames.contains(serviceName.lowercased()) {
+            suffix += 1
+            serviceName = "service\(suffix)"
+        }
+
+        multipassServices.append(
+            MultipassServiceDraft(
+                vmName: normalizedVMName,
+                serviceName: serviceName,
+                host: "\(serviceName).\(vmLabel).mp.localhost",
                 targetPort: 8080
             )
         )
@@ -510,6 +543,22 @@ final class DashboardViewModel: ObservableObject {
             let result = await self.onDemandAppsService.controlMultipassService(id: serviceID, action: action)
             self.lastMultipassServiceControlResult = result
             self.isChangingMultipassServiceRuntime = false
+            let updatedSnapshot = await self.dashboardService.loadSnapshot()
+            self.snapshot = updatedSnapshot
+            self.hasLoaded = true
+            self.startRuntimePollingIfNeeded()
+            self.refreshLogs()
+        }
+    }
+
+    func controlMultipassVM(vmName: String, action: MultipassVMControlAction) {
+        guard !isChangingMultipassVMRuntime else { return }
+        isChangingMultipassVMRuntime = true
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await self.onDemandAppsService.controlMultipassVM(vmName: vmName, action: action)
+            self.lastMultipassVMControlResult = result
+            self.isChangingMultipassVMRuntime = false
             let updatedSnapshot = await self.dashboardService.loadSnapshot()
             self.snapshot = updatedSnapshot
             self.hasLoaded = true
@@ -811,6 +860,21 @@ final class DashboardViewModel: ObservableObject {
 
     nonisolated private func shellEscape(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private func sanitizeDNSLabel(_ value: String) -> String? {
+        let lowered = value.lowercased()
+        let mapped = lowered.map { character -> Character in
+            if character.isLetter || character.isNumber || character == "-" {
+                return character
+            }
+            return "-"
+        }
+        let label = String(mapped)
+            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        guard !label.isEmpty else { return nil }
+        return String(label.prefix(63))
     }
 
     private func validateCustomConfig(routes: [CustomRouteDraft]) -> String? {
