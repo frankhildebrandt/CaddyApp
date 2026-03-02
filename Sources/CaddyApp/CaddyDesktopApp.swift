@@ -121,19 +121,22 @@ private struct AppSettingsView: View {
     @Binding var hideWindowToMenuBarOnClose: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
+        TabView {
             Form {
-                Section("Allgemein") {
-                    Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
-                }
+                Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
             }
+            .formStyle(.grouped)
             .padding(20)
-
-            Divider()
+            .tabItem {
+                Label("Allgemein", systemImage: "gearshape")
+            }
 
             ContentView(viewModel: viewModel)
                 .settingsConfigurationContent
+                .tabItem {
+                    Label("Konfiguration", systemImage: "slider.horizontal.3")
+                }
         }
-        .frame(minWidth: 1100, minHeight: 820)
+        .frame(minWidth: 1050, minHeight: 760)
     }
 }
