@@ -78,8 +78,13 @@ Build-Artefakte:
 
 ## Projektstruktur
 
-- `Sources/CaddyApp/Views/` - SwiftUI-Oberflaechen
+- `Sources/CaddyApp/Views/AppShell/` - Hauptfenster-Shell (Header, Sidebar, Main-Layout)
+- `Sources/CaddyApp/Views/Tabs/` - Dashboard-Tabs (Dashboard/System/Runtime/Config/Logs/Features)
+- `Sources/CaddyApp/Views/Settings/` - Settings-Root + Pane-Views
+- `Sources/CaddyApp/Views/OnDemand/` - On-Demand-Feature-Komponenten
+- `Sources/CaddyApp/Views/Shared/` - Wiederverwendbare UI-Bausteine
 - `Sources/CaddyApp/ViewModels/` - UI-State und Orchestrierung
+- `Sources/CaddyApp/ViewModels/Features/` - Feature-spezifische ViewModels
 - `Sources/CaddyApp/Services/` - Caddy-, Runtime- und Systemintegration
 - `Sources/CaddyApp/Models/` - Domain-Modelle und Feature-Katalog
 - `docs/features/` - Feature-Status und Fortschrittsdokumente

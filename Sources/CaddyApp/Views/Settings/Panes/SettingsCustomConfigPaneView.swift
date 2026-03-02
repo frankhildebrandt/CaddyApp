@@ -1,25 +1,41 @@
 import SwiftUI
 
-extension ContentView {
-    func customConfigSection(_ snapshot: DashboardSnapshot) -> some View {
+struct SettingsCustomConfigPaneView: View {
+    let snapshot: DashboardSnapshot?
+    @ObservedObject var dashboardViewModel: DashboardViewModel
+
+    var body: some View {
+        List {
+            if let snapshot {
+                Section {
+                    customConfigSection(snapshot)
+                }
+            } else {
+                AppSkeletonView()
+            }
+        }
+        .listStyle(.automatic)
+    }
+
+    private func customConfigSection(_ snapshot: DashboardSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("Custom Routes") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Eigene Hosts werden mit den automatisch erkannten Runtime-Routen kombiniert.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Toggle("Traefik.me-Aliase fuer .localhost-Hosts aktivieren", isOn: $viewModel.enableTraefikMeAliases)
+                    Toggle("Traefik.me-Aliase fuer .localhost-Hosts aktivieren", isOn: $dashboardViewModel.enableTraefikMeAliases)
                         .toggleStyle(.checkbox)
                     Text("Erzeugt pro Host zusaetzliche Aliase wie <host>.<ip>.traefik.me (nur fuer nicht-Wildcard .localhost-Hosts).")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
 
-                    if viewModel.customRoutes.isEmpty {
+                    if dashboardViewModel.customRoutes.isEmpty {
                         Text("Noch keine Custom Route angelegt.")
                             .foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(viewModel.customRoutes.indices), id: \.self) { index in
+                            ForEach(Array(dashboardViewModel.customRoutes.indices), id: \.self) { index in
                                 customRouteRow(at: index)
                             }
                         }
@@ -27,7 +43,7 @@ extension ContentView {
 
                     HStack(spacing: 10) {
                         Button("Route hinzufügen") {
-                            viewModel.addCustomRoute()
+                            dashboardViewModel.addCustomRoute()
                         }
                         Spacer()
                         Text("Aktive Routen im Preview: \(snapshot.configPreview.routeCount)")
@@ -45,11 +61,11 @@ extension ContentView {
                         .foregroundStyle(.secondary)
 
                     ZStack(alignment: .topLeading) {
-                        TextEditor(text: $viewModel.customAdditionalCaddyfileConfig)
+                        TextEditor(text: $dashboardViewModel.customAdditionalCaddyfileConfig)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 160)
 
-                        if viewModel.customAdditionalCaddyfileConfig.isEmpty {
+                        if dashboardViewModel.customAdditionalCaddyfileConfig.isEmpty {
                             Text("# Beispiel\n# my.internal {\n#     respond \"hello\" 200\n# }")
                                 .font(.system(.body, design: .monospaced))
                                 .foregroundStyle(.tertiary)
@@ -70,41 +86,34 @@ extension ContentView {
 
                     HStack(spacing: 10) {
                         Button("Custom Config speichern") {
-                            viewModel.saveAdditionalCaddyfileConfig()
+                            dashboardViewModel.saveAdditionalCaddyfileConfig()
                         }
-                        .disabled(viewModel.isSavingCustomConfig || viewModel.isLoading || viewModel.isChangingCaddyRuntime)
+                        .disabled(dashboardViewModel.isSavingCustomConfig || dashboardViewModel.isLoading || dashboardViewModel.isChangingCaddyRuntime)
 
-                        if viewModel.isSavingCustomConfig {
+                        if dashboardViewModel.isSavingCustomConfig {
                             InlineActivitySkeleton()
                         }
                     }
 
-                    if let validationError = viewModel.customConfigValidationError {
+                    if let validationError = dashboardViewModel.customConfigValidationError {
                         Text(validationError)
                             .foregroundStyle(.red)
                     }
 
-                    if let saveResult = viewModel.lastCustomConfigSaveResult {
-                        Text(saveResult.message)
-                            .foregroundStyle(saveResult.succeeded ? .green : .red)
+                    if let saveResult = dashboardViewModel.lastCustomConfigSaveResult {
+                        StatusMessageView(message: saveResult.message, isSuccess: saveResult.succeeded)
                         Text(saveResult.performedAt.formatted(date: .abbreviated, time: .standard))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
-                    if let operation = viewModel.lastConfigOperation {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Letzte Config-Aktion: \(operation.kind.rawValue.capitalized) - \(operation.message)")
-                                .foregroundStyle(operation.succeeded ? .green : .red)
-                            if !operation.output.isEmpty {
-                                Text(operation.output)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .padding(8)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if let operation = dashboardViewModel.lastConfigOperation {
+                        OperationResultView(
+                            title: nil,
+                            message: "Letzte Config-Aktion: \(operation.kind.rawValue.capitalized) - \(operation.message)",
+                            detail: operation.output,
+                            isSuccess: operation.succeeded
+                        )
                     }
                 }
                 .padding(.top, 4)
@@ -112,8 +121,8 @@ extension ContentView {
         }
     }
 
-    func customRouteRow(at index: Int) -> some View {
-        let routeBinding = $viewModel.customRoutes[index]
+    private func customRouteRow(at index: Int) -> some View {
+        let routeBinding = $dashboardViewModel.customRoutes[index]
         let routeID = routeBinding.wrappedValue.id
 
         return HStack(alignment: .center, spacing: 8) {
@@ -131,7 +140,7 @@ extension ContentView {
                 .textFieldStyle(.roundedBorder)
 
             Button(role: .destructive) {
-                viewModel.removeCustomRoute(id: routeID)
+                dashboardViewModel.removeCustomRoute(id: routeID)
             } label: {
                 Image(systemName: "trash")
             }

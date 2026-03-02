@@ -1,12 +1,29 @@
 import SwiftUI
 
-extension ContentView {
-    func multipassSection(_ snapshot: DashboardSnapshot) -> some View {
+struct SettingsServicesPaneView: View {
+    let snapshot: DashboardSnapshot?
+    @ObservedObject var dashboardViewModel: DashboardViewModel
+    @ObservedObject var multipassViewModel: MultipassViewModel
+
+    var body: some View {
+        List {
+            if let snapshot {
+                Section {
+                    multipassSection(snapshot)
+                }
+            } else {
+                AppSkeletonView()
+            }
+        }
+        .listStyle(.automatic)
+    }
+
+    private func multipassSection(_ snapshot: DashboardSnapshot) -> some View {
         let multipassTargets = snapshot.runtimeTargets.filter { $0.source == .multipass }
         let targetByName = Dictionary(uniqueKeysWithValues: multipassTargets.map { ($0.name, $0) })
         let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.multipassServiceStatuses.map { ($0.id, $0) })
-        let servicesByVM = Dictionary(grouping: Array(viewModel.multipassServices.indices), by: { index in
-            let name = viewModel.multipassServices[index].vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let servicesByVM = Dictionary(grouping: Array(dashboardViewModel.multipassServices.indices), by: { index in
+            let name = dashboardViewModel.multipassServices[index].vmName.trimmingCharacters(in: .whitespacesAndNewlines)
             return name.isEmpty ? "Unzugeordnet" : name
         })
         var vmNames = Set(multipassTargets.map(\.name))
@@ -47,18 +64,12 @@ extension ContentView {
                         }
                     }
 
-                    if let result = viewModel.lastMultipassVMControlResult {
-                        Text(result.message)
-                            .font(.caption)
-                            .foregroundStyle(result.succeeded ? .green : .red)
-                            .lineLimit(2)
+                    if let result = dashboardViewModel.lastMultipassVMControlResult {
+                        StatusMessageView(message: result.message, isSuccess: result.succeeded)
                     }
 
-                    if let result = viewModel.lastMultipassServiceControlResult {
-                        Text(result.message)
-                            .font(.caption)
-                            .foregroundStyle(result.succeeded ? .green : .red)
-                            .lineLimit(2)
+                    if let result = dashboardViewModel.lastMultipassServiceControlResult {
+                        StatusMessageView(message: result.message, isSuccess: result.succeeded)
                     }
                 }
                 .padding(.top, 4)
@@ -66,7 +77,7 @@ extension ContentView {
         }
     }
 
-    func multipassVMCard(
+    private func multipassVMCard(
         vmName: String,
         target: RuntimeTarget?,
         serviceIndices: [Int],
@@ -84,7 +95,7 @@ extension ContentView {
                     Text(target?.address ?? "(no ip)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
-                    if let host = multipassAutoHost(for: vmName) {
+                    if let host = multipassViewModel.autoHost(for: vmName) {
                         Text("Auto route: \(host)")
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
@@ -102,37 +113,37 @@ extension ContentView {
             HStack(spacing: 8) {
                 if canStart {
                     Button {
-                        viewModel.controlMultipassVM(vmName: vmName, action: .start)
+                        dashboardViewModel.controlMultipassVM(vmName: vmName, action: .start)
                     } label: {
                         Label("Start", systemImage: "play.circle.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
-                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassVMRuntime || dashboardViewModel.isChangingMultipassServiceRuntime)
                 }
 
                 if canStop {
                     Button {
-                        viewModel.controlMultipassVM(vmName: vmName, action: .stop)
+                        dashboardViewModel.controlMultipassVM(vmName: vmName, action: .stop)
                     } label: {
                         Label("Stop", systemImage: "stop.circle.fill")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassVMRuntime || dashboardViewModel.isChangingMultipassServiceRuntime)
 
                     Button(role: .destructive) {
-                        viewModel.controlMultipassVM(vmName: vmName, action: .forceStop)
+                        dashboardViewModel.controlMultipassVM(vmName: vmName, action: .forceStop)
                     } label: {
                         Label("Force-Stop", systemImage: "exclamationmark.octagon.fill")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassVMRuntime || dashboardViewModel.isChangingMultipassServiceRuntime)
                 }
 
                 Spacer()
 
                 Button {
-                    viewModel.addMultipassService(forVMName: vmName)
+                    dashboardViewModel.addMultipassService(forVMName: vmName)
                 } label: {
                     Label("Service hinzufügen", systemImage: "plus.circle.fill")
                 }
@@ -162,12 +173,12 @@ extension ContentView {
         )
     }
 
-    func multipassServiceRow(
+    private func multipassServiceRow(
         at index: Int,
         vmName: String?,
         statusesByID: [UUID: MultipassServiceRuntimeStatus]
     ) -> some View {
-        let serviceBinding = $viewModel.multipassServices[index]
+        let serviceBinding = $dashboardViewModel.multipassServices[index]
         let serviceID = serviceBinding.wrappedValue.id
         let runtimeStatus = statusesByID[serviceID]
 
@@ -194,7 +205,7 @@ extension ContentView {
                     .textFieldStyle(.roundedBorder)
             }
             HStack {
-                TextField("Port", value: serviceBinding.targetPort, formatter: integerFormatter)
+                TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 90)
                 Picker("Scheme", selection: serviceBinding.scheme) {
@@ -207,7 +218,7 @@ extension ContentView {
                     .toggleStyle(.checkbox)
                 Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
                     .toggleStyle(.checkbox)
-                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: integerFormatter)
+                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 90)
             }
@@ -227,46 +238,46 @@ extension ContentView {
                 }
                 Spacer()
                 Button {
-                    viewModel.controlMultipassService(serviceID: serviceID, action: .start)
+                    dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .start)
                 } label: {
                     Label("Start", systemImage: "play.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                .disabled(viewModel.isChangingMultipassServiceRuntime)
+                .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
                 Button {
-                    viewModel.controlMultipassService(serviceID: serviceID, action: .stop)
+                    dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stop)
                 } label: {
                     Label("Stop", systemImage: "stop.circle.fill")
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
-                .disabled(viewModel.isChangingMultipassServiceRuntime)
+                .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
                 if !serviceBinding.wrappedValue.systemdUnit.isEmpty {
                     Button {
-                        viewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
+                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
                     } label: {
                         Label("Start unit", systemImage: "bolt.circle")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
                     Button {
-                        viewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
+                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
                     } label: {
                         Label("Restart unit", systemImage: "arrow.clockwise.circle")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
                     Button {
-                        viewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
+                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
                     } label: {
                         Label("Stop unit", systemImage: "power.circle")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.isChangingMultipassServiceRuntime)
+                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
                 }
                 Button(role: .destructive) {
-                    viewModel.removeMultipassService(id: serviceID)
+                    dashboardViewModel.removeMultipassService(id: serviceID)
                 } label: {
                     Image(systemName: "trash")
                 }

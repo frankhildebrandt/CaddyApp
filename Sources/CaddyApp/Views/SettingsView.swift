@@ -5,8 +5,10 @@ struct AppSettingsView: View {
     @Binding var hideWindowToMenuBarOnClose: Bool
 
     var body: some View {
-        ContentView(viewModel: viewModel)
-            .settingsConfigurationContent
-            .frame(minWidth: 1050, minHeight: 760)
+        SettingsRootView(
+            dashboardViewModel: viewModel,
+            hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
+        )
+        .frame(minWidth: 1050, minHeight: 760)
     }
 }

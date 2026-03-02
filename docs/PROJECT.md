@@ -19,14 +19,21 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Dashboard runtime polling interval tuned to reduce idle CPU pressure.
 - Loading UX standardized with skeleton placeholders and inline skeleton activity states.
 - Global app menu plus native macOS settings window (`Apple-,`) added.
-- UI tab composition split into dedicated tab files (`ContentView+*Tab.swift`) so each major tab/config area is independently maintainable.
-- Major tabs are now explicit SwiftUI component structs (for example `DashboardTabView`, `SystemTabView`, `LogsTabView`) instead of only `ContentView` extensions.
+- Main window now uses `AppShellView` with dedicated shell components (`AppHeaderView`, `AppSidebarView`) and per-feature detail views.
+- Settings are decoupled into `SettingsRootView` with pane views (`General`, `On-Demand`, `Services`, `Custom Config`) instead of `ContentView` extensions.
+- On-Demand, Multipass, and Settings feature state is segmented into feature view models under `ViewModels/Features/*`.
 
 ## Repository Structure
 
 - `Sources/CaddyApp/`
 - `Sources/CaddyApp/Views/`: SwiftUI views
+- `Sources/CaddyApp/Views/AppShell/`: shell layout and window/menu entry views
+- `Sources/CaddyApp/Views/Tabs/`: main dashboard tab views
+- `Sources/CaddyApp/Views/Settings/`: settings root and pane views
+- `Sources/CaddyApp/Views/OnDemand/`: on-demand feature subviews
+- `Sources/CaddyApp/Views/Shared/`: reusable view components
 - `Sources/CaddyApp/ViewModels/`: UI state and orchestration
+- `Sources/CaddyApp/ViewModels/Features/`: feature-specific UI state
 - `Sources/CaddyApp/Services/`: Caddy, runtime, config, and system integration logic
 - `Sources/CaddyApp/Models/`: domain models and feature catalog
 - `docs/features/`: feature-level planning/progress documents
