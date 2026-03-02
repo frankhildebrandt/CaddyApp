@@ -26,6 +26,7 @@ struct ContentView: View {
         case dashboard
         case caddyTLS = "caddy_tls"
         case runtime
+        case multipass
         case onDemandApps = "on_demand_apps"
         case custom
         case config
@@ -39,6 +40,7 @@ struct ContentView: View {
             case .dashboard: return "Dashboard"
             case .caddyTLS: return "Caddy / TLS"
             case .runtime: return "Runtime"
+            case .multipass: return "Multipass"
             case .onDemandApps: return "On-Demand Apps"
             case .custom: return "Custom"
             case .config: return "Config"
@@ -52,6 +54,7 @@ struct ContentView: View {
             case .dashboard: return "rectangle.grid.2x2"
             case .caddyTLS: return "lock.shield"
             case .runtime: return "server.rack"
+            case .multipass: return "shippingbox"
             case .onDemandApps: return "bolt.badge.clock"
             case .custom: return "slider.horizontal.3"
             case .config: return "doc.text"
@@ -169,6 +172,8 @@ struct ContentView: View {
                         systemSection(snapshot)
                     case .runtime:
                         runtimeSection(snapshot)
+                    case .multipass:
+                        multipassSection(snapshot)
                     case .onDemandApps:
                         onDemandAppsSection(snapshot)
                     case .custom:
@@ -713,14 +718,16 @@ struct ContentView: View {
     }
 
     private func runtimeSection(_ snapshot: DashboardSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Runtime Discovery (Multipass / Podman)") {
+        let podmanTargets = snapshot.runtimeTargets.filter { $0.source == .podman }
+
+        return VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Runtime Discovery (Podman)") {
                 VStack(alignment: .leading, spacing: 8) {
-                    if snapshot.runtimeTargets.isEmpty {
-                        Text("No runtime targets detected")
+                    if podmanTargets.isEmpty {
+                        Text("Keine Podman Runtime Targets erkannt.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(snapshot.runtimeTargets) { target in
+                        ForEach(podmanTargets) { target in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack {
@@ -730,7 +737,42 @@ struct ContentView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
-                                    if target.source == .multipass, let host = multipassAutoHost(for: target.name) {
+                                }
+                                Spacer()
+                                Text(target.address)
+                                    .font(.system(.body, design: .monospaced))
+                                Text(target.status)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private func multipassSection(_ snapshot: DashboardSnapshot) -> some View {
+        let multipassTargets = snapshot.runtimeTargets.filter { $0.source == .multipass }
+
+        return VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Multipass Runtime Discovery") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if multipassTargets.isEmpty {
+                        Text("Keine Multipass VMs erkannt.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(multipassTargets) { target in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text(target.name)
+                                            .font(.headline)
+                                        Text(target.source.label)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let host = multipassAutoHost(for: target.name) {
                                         Text("Auto route: \(host)")
                                             .font(.caption.monospaced())
                                             .foregroundStyle(.secondary)
@@ -761,9 +803,12 @@ struct ContentView: View {
                     }
 
                     HStack {
-                        Button("Multipass Service hinzufügen") {
+                        Button {
                             viewModel.addMultipassService()
+                        } label: {
+                            Label("Service hinzufügen", systemImage: "plus.circle.fill")
                         }
+                        .buttonStyle(.borderedProminent)
                         Spacer()
                         if let result = viewModel.lastMultipassServiceControlResult {
                             Text(result.message)
@@ -966,26 +1011,43 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Start") {
+                Button {
                     viewModel.controlMultipassService(serviceID: serviceID, action: .start)
+                } label: {
+                    Label("Start", systemImage: "play.circle.fill")
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
                 .disabled(viewModel.isChangingMultipassServiceRuntime)
-                Button("Stop") {
+                Button {
                     viewModel.controlMultipassService(serviceID: serviceID, action: .stop)
+                } label: {
+                    Label("Stop", systemImage: "stop.circle.fill")
                 }
+                .buttonStyle(.bordered)
+                .tint(.red)
                 .disabled(viewModel.isChangingMultipassServiceRuntime)
                 if !serviceBinding.wrappedValue.systemdUnit.isEmpty {
-                    Button("Start systemd") {
+                    Button {
                         viewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
+                    } label: {
+                        Label("Start unit", systemImage: "bolt.circle")
                     }
+                    .buttonStyle(.bordered)
                     .disabled(viewModel.isChangingMultipassServiceRuntime)
-                    Button("Restart systemd") {
+                    Button {
                         viewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
+                    } label: {
+                        Label("Restart unit", systemImage: "arrow.clockwise.circle")
                     }
+                    .buttonStyle(.bordered)
                     .disabled(viewModel.isChangingMultipassServiceRuntime)
-                    Button("Stop systemd") {
+                    Button {
                         viewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
+                    } label: {
+                        Label("Stop unit", systemImage: "power.circle")
                     }
+                    .buttonStyle(.bordered)
                     .disabled(viewModel.isChangingMultipassServiceRuntime)
                 }
                 Button(role: .destructive) {
