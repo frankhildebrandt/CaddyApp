@@ -32,14 +32,15 @@ extension ContentView {
         NavigationSplitView {
             List(selection: $selectedConfigDialogPane) {
                 ForEach(ConfigDialogPane.allCases) { pane in
-                    Label(pane.title, systemImage: pane.systemImage)
-                        .tag(pane)
+                    NavigationLink(value: pane) {
+                        Label(pane.title, systemImage: pane.systemImage)
+                    }
                 }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
-            settingsDetailList(for: selectedConfigDialogPane)
+            settingsDetailList(for: selectedConfigDialogPane ?? .general)
         }
         .frame(minWidth: 1100, minHeight: 760)
     }

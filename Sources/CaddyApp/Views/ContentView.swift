@@ -71,7 +71,7 @@ struct ContentView: View {
     @State var onDemandEventLogByAppID: [UUID: String] = [:]
     @State var onDemandLoadingByAppID: [UUID: Bool] = [:]
     @State var showConfigurationDialog = false
-    @State var selectedConfigDialogPane: ConfigDialogPane = .general
+    @State var selectedConfigDialogPane: ConfigDialogPane? = .general
 
     var body: some View {
         VStack(spacing: 0) {
