@@ -26,6 +26,13 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BIN_SRC" "$MACOS_DIR/$APP_NAME"
 chmod 755 "$MACOS_DIR/$APP_NAME"
 
+# Include SwiftPM resource bundles (e.g. <Target>_<Target>.bundle) next to the built executable.
+BIN_DIR=$(CDPATH= cd -- "$(dirname -- "$BIN_SRC")" && pwd)
+for bundle in "$BIN_DIR"/*.bundle; do
+  [ -d "$bundle" ] || continue
+  cp -R "$bundle" "$RESOURCES_DIR/"
+done
+
 if [ -f "$APP_ICON_SRC" ]; then
   cp "$APP_ICON_SRC" "$RESOURCES_DIR/${APP_NAME}.icns"
 fi

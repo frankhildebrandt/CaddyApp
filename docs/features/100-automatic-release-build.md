@@ -33,6 +33,7 @@ Automatically build the macOS app bundle and attach it as a downloadable asset w
 
 - The workflow uses `macos-latest` so that all required Apple tooling (`swift`, `sips`, `iconutil`) is available.
 - Icon generation (`generate_app_icon.sh`) uses `qlmanage` which may not render SVGs in a headless environment; the step is allowed to fail gracefully (`|| echo "Icon generation skipped"`).
+- The app bundle script copies SwiftPM `*.bundle` resources into `CaddyApp.app/Contents/Resources` so `Bundle.module` lookups work in distributed builds.
 - Repository commits are handled by the coding agent after successful local builds; CI build flow stays commit-free.
 - The `GITHUB_TOKEN` permission `contents: write` is required to upload release assets.
 - First-start Gatekeeper behavior on downloaded ZIPs is documented in `README.md` (quarantine removal fallback).
@@ -41,3 +42,4 @@ Automatically build the macOS app bundle and attach it as a downloadable asset w
 
 - 2026-02-27: Created workflow and feature document.
 - 2026-03-02: Switched release build to universal (`arm64` + `x86_64`) and added architecture verification step in CI.
+- 2026-03-02: Fixed startup crash in packaged apps by bundling SwiftPM resource bundles (`*.bundle`) into the generated `.app`.
