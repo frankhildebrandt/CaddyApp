@@ -13,15 +13,19 @@ struct SettingsRootView: View {
                 ForEach(SettingsPane.allCases) { pane in
                     NavigationLink(value: pane) {
                         Label(pane.title, systemImage: pane.systemImage)
+                            .padding(.leading, 8)
                     }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 8))
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 230)
+            .navigationSplitViewColumnWidth(min: 210, ideal: 250)
         } detail: {
             settingsDetail(for: settingsViewModel.selectedPane ?? .general)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(minWidth: 1100, minHeight: 760)
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 980, minHeight: 700)
     }
 
     @ViewBuilder

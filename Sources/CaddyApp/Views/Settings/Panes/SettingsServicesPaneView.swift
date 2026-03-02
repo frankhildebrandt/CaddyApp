@@ -183,53 +183,21 @@ struct SettingsServicesPaneView: View {
         let runtimeStatus = statusesByID[serviceID]
 
         return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Toggle("", isOn: serviceBinding.enabled)
-                    .labelsHidden()
-                    .toggleStyle(.checkbox)
-                if let vmName {
-                    Text(vmName)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(Capsule())
-                } else {
-                    TextField("VM", text: serviceBinding.vmName)
-                        .textFieldStyle(.roundedBorder)
-                }
-                TextField("Service", text: serviceBinding.serviceName)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Host", text: serviceBinding.host)
-                    .textFieldStyle(.roundedBorder)
+            ViewThatFits(in: .horizontal) {
+                primaryServiceRowCompact(serviceBinding: serviceBinding, vmName: vmName)
+                primaryServiceRowStacked(serviceBinding: serviceBinding, vmName: vmName)
             }
-            HStack {
-                TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 90)
-                Picker("Scheme", selection: serviceBinding.scheme) {
-                    Text("http").tag(MultipassServiceScheme.http)
-                    Text("https").tag(MultipassServiceScheme.https)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 150)
-                Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
-                    .toggleStyle(.checkbox)
-                Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
-                    .toggleStyle(.checkbox)
-                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 90)
+
+            ViewThatFits(in: .horizontal) {
+                secondaryServiceRowCompact(serviceBinding: serviceBinding)
+                secondaryServiceRowStacked(serviceBinding: serviceBinding)
             }
-            HStack {
-                TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
-                    .textFieldStyle(.roundedBorder)
-                Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
-                    .toggleStyle(.checkbox)
-                Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
-                    .toggleStyle(.checkbox)
+
+            ViewThatFits(in: .horizontal) {
+                tertiaryServiceRowCompact(serviceBinding: serviceBinding)
+                tertiaryServiceRowStacked(serviceBinding: serviceBinding)
             }
+
             HStack {
                 if let runtimeStatus {
                     Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
@@ -289,6 +257,140 @@ struct SettingsServicesPaneView: View {
             guard let vmName else { return }
             if serviceBinding.wrappedValue.vmName != vmName {
                 serviceBinding.wrappedValue.vmName = vmName
+            }
+        }
+    }
+
+    private func primaryServiceRowCompact(
+        serviceBinding: Binding<MultipassServiceDraft>,
+        vmName: String?
+    ) -> some View {
+        HStack {
+            Toggle("", isOn: serviceBinding.enabled)
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+                if let vmName {
+                    Text(vmName)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.08))
+                        .clipShape(Capsule())
+                } else {
+                    TextField("VM", text: serviceBinding.vmName)
+                        .textFieldStyle(.roundedBorder)
+                }
+                TextField("Service", text: serviceBinding.serviceName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Host", text: serviceBinding.host)
+                    .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func primaryServiceRowStacked(
+        serviceBinding: Binding<MultipassServiceDraft>,
+        vmName: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Toggle("", isOn: serviceBinding.enabled)
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                if let vmName {
+                    Text(vmName)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.08))
+                        .clipShape(Capsule())
+                } else {
+                    TextField("VM", text: serviceBinding.vmName)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+            TextField("Service", text: serviceBinding.serviceName)
+                .textFieldStyle(.roundedBorder)
+            TextField("Host", text: serviceBinding.host)
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func secondaryServiceRowCompact(
+        serviceBinding: Binding<MultipassServiceDraft>
+    ) -> some View {
+        HStack {
+            TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 90)
+            Picker("Scheme", selection: serviceBinding.scheme) {
+                Text("http").tag(MultipassServiceScheme.http)
+                Text("https").tag(MultipassServiceScheme.https)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 150)
+            Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
+                .toggleStyle(.checkbox)
+            Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
+                .toggleStyle(.checkbox)
+            TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 90)
+        }
+    }
+
+    private func secondaryServiceRowStacked(
+        serviceBinding: Binding<MultipassServiceDraft>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                Picker("Scheme", selection: serviceBinding.scheme) {
+                    Text("http").tag(MultipassServiceScheme.http)
+                    Text("https").tag(MultipassServiceScheme.https)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+            }
+            HStack {
+                Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
+                    .toggleStyle(.checkbox)
+                Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
+                    .toggleStyle(.checkbox)
+            }
+        }
+    }
+
+    private func tertiaryServiceRowCompact(
+        serviceBinding: Binding<MultipassServiceDraft>
+    ) -> some View {
+        HStack {
+            TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
+                .textFieldStyle(.roundedBorder)
+            Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
+                .toggleStyle(.checkbox)
+            Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
+                .toggleStyle(.checkbox)
+        }
+    }
+
+    private func tertiaryServiceRowStacked(
+        serviceBinding: Binding<MultipassServiceDraft>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
+                    .toggleStyle(.checkbox)
+                Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
+                    .toggleStyle(.checkbox)
             }
         }
     }

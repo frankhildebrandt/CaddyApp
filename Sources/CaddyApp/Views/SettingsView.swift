@@ -9,6 +9,6 @@ struct AppSettingsView: View {
             dashboardViewModel: viewModel,
             hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
         )
-        .frame(minWidth: 1050, minHeight: 760)
+        .frame(minWidth: 980, minHeight: 700)
     }
 }
