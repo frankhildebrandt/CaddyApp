@@ -26,6 +26,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - [x] App attempts discovery for Multipass and Podman.
 - [x] App normalizes results into shared runtime targets when JSON shape matches expected fields.
 - [x] App derives an automatic route for Multipass VMs using `{vm-name}.mp.localhost`.
+- [x] App generates a default wildcard alias route for Multipass VMs using `*.{vm-name}.mp.localhost`.
 - [x] App lists discovered Multipass and Podman runtime targets in the shared runtime model.
 - [x] Multipass target address inference probes common HTTP/HTTPS ports during bootstrap discovery.
 - [x] App periodically refreshes runtime discovery in the background and auto-reloads Caddy when the generated config changes and validates successfully.
@@ -113,3 +114,4 @@ services:
 - 2026-03-02: Split Multipass UI into its own tab page and moved runtime-level Multipass controls/discovery out of the generic Runtime tab.
 - 2026-03-02: Reworked Multipass tab to VM cards, added direct VM runtime controls (including force-stop), and moved "Service hinzufügen" into each VM card.
 - 2026-03-02: Gateway proxy now accepts self-signed TLS certificates for Multipass services configured with `scheme: https`, avoiding spurious 502 errors.
+- 2026-03-02: Re-enabled default wildcard alias route generation for VM apex hosts (`*.{vm}.mp.localhost`) in generated Caddy config.

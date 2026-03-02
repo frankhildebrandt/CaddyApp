@@ -75,9 +75,16 @@ struct CaddyConfigService {
                 guard let vmLabel = dnsLabel(from: target.name) else { return [] }
                 guard target.address != "(no ip)" else { return [] }
                 let enabled = target.status.lowercased() == "running"
+                let apexHost = "\(vmLabel).mp.localhost"
                 return [
                     ProxyRoute(
-                        host: "\(vmLabel).mp.localhost",
+                        host: apexHost,
+                        upstream: target.address,
+                        source: .multipass,
+                        enabled: enabled
+                    ),
+                    ProxyRoute(
+                        host: "*.\(apexHost)",
                         upstream: target.address,
                         source: .multipass,
                         enabled: enabled
