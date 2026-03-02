@@ -19,8 +19,8 @@ jobs:
         with:
           swift-version: '6.2.3'
 
-      - name: Build release binary
-        run: swift build -c release --scratch-path _build/swiftpm
+      - name: Build universal release binary (arm64 + x86_64)
+        run: swift build -c release --scratch-path _build/swiftpm --arch arm64 --arch x86_64
 
       - name: Generate app icon
         run: ./scripts/generate_app_icon.sh || echo "Icon generation skipped (no display or missing tools)"
@@ -31,12 +31,17 @@ jobs:
           VERSION="${VERSION#v}"
           mkdir -p _build/release
           ./scripts/make_macos_app_bundle.sh \
-            _build/swiftpm/release/CaddyApp \
+            _build/swiftpm/apple/Products/Release/CaddyApp \
             _build/release/CaddyApp.app \
             CaddyApp \
             com.frankhildebrandt.CaddyApp \
             "$VERSION" \
             14.0
+
+      - name: Show binary architectures
+        run: |
+          file _build/release/CaddyApp.app/Contents/MacOS/CaddyApp
+          lipo -archs _build/release/CaddyApp.app/Contents/MacOS/CaddyApp
 
       - name: Zip app bundle
         run: |

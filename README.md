@@ -109,6 +109,23 @@ Details siehe:
 
 GitHub-Releases triggern den Build-Workflow in `.github/workflows/release.yml`.
 Dabei wird ein Release-Build erstellt, als macOS-App gebuendelt und als ZIP-Artefakt angehaengt.
+Der Release-Build wird als Universal-Binary (`arm64` + `x86_64`) erzeugt.
+
+### Release-App lokal starten (Download von GitHub)
+
+Nach dem Entpacken kann macOS die App beim ersten Start blockieren (Gatekeeper/Quarantine).
+Falls die App nicht startet:
+
+```bash
+xattr -dr com.apple.quarantine CaddyApp.app
+open CaddyApp.app
+```
+
+Optional zur Architektur-Pruefung:
+
+```bash
+file CaddyApp.app/Contents/MacOS/CaddyApp
+```
 
 ## Dokumentation
 
