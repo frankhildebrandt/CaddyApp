@@ -19,6 +19,11 @@ actor OnDemandAppsService {
         delegate: NoRedirectURLSessionDelegate(),
         delegateQueue: nil
     )
+    private let insecureHTTPSession = URLSession(
+        configuration: .ephemeral,
+        delegate: InsecureTLSNoRedirectURLSessionDelegate(),
+        delegateQueue: nil
+    )
     private let listenerQueue = DispatchQueue(label: "caddyapp.on-demand.gateway")
     private var listener: NWListener?
     private var maintenanceTask: Task<Void, Never>?
@@ -418,6 +423,7 @@ actor OnDemandAppsService {
         guard let url = URL(string: target) else {
             return .text(status: 500, body: "Invalid upstream URL for \(upstream.targetHost):\(upstream.targetPort)")
         }
+        let session = upstream.scheme == .https ? insecureHTTPSession : httpSession
 
         var request = URLRequest(url: url)
         request.httpMethod = incoming.method
@@ -438,7 +444,7 @@ actor OnDemandAppsService {
         }
 
         do {
-            let (data, response) = try await httpSession.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return .text(status: 502, body: "Upstream response was not HTTP")
             }
@@ -1418,6 +1424,33 @@ private final class NoRedirectURLSessionDelegate: NSObject, URLSessionTaskDelega
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
         completionHandler(nil)
+    }
+}
+
+private final class InsecureTLSNoRedirectURLSessionDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _: URLSession,
+        task _: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
+    func urlSession(
+        _: URLSession,
+        task _: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           let trust = challenge.protectionSpace.serverTrust {
+            completionHandler(.useCredential, URLCredential(trust: trust))
+            return
+        }
+
+        completionHandler(.performDefaultHandling, nil)
     }
 }
 

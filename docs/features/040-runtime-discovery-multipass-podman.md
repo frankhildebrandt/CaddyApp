@@ -112,3 +112,4 @@ services:
 - 2026-02-27: Prevented startup side-effect where YAML import could wake stopped VMs; importer now skips non-running VMs.
 - 2026-03-02: Split Multipass UI into its own tab page and moved runtime-level Multipass controls/discovery out of the generic Runtime tab.
 - 2026-03-02: Reworked Multipass tab to VM cards, added direct VM runtime controls (including force-stop), and moved "Service hinzufügen" into each VM card.
+- 2026-03-02: Gateway proxy now accepts self-signed TLS certificates for Multipass services configured with `scheme: https`, avoiding spurious 502 errors.
