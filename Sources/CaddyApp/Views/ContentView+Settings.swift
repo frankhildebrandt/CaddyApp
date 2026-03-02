@@ -32,39 +32,18 @@ extension ContentView {
         NavigationSplitView {
             List(selection: $selectedConfigDialogPane) {
                 ForEach(ConfigDialogPane.allCases) { pane in
-                    NavigationLink(value: pane) {
-                        Label(pane.title, systemImage: pane.systemImage)
-                    }
+                    Label(pane.title, systemImage: pane.systemImage)
+                        .tag(pane)
                 }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
             List {
-                switch selectedConfigDialogPane {
-                case .general:
-                    settingsGeneralPane
-                case .onDemandApps:
-                    if let snapshot = viewModel.snapshot {
-                        onDemandAppsSection(snapshot)
-                    } else {
-                        appSkeletonState
-                    }
-                case .services:
-                    if let snapshot = viewModel.snapshot {
-                        multipassSection(snapshot)
-                    } else {
-                        appSkeletonState
-                    }
-                case .customConfig:
-                    if let snapshot = viewModel.snapshot {
-                        customConfigSection(snapshot)
-                    } else {
-                        appSkeletonState
-                    }
-                }
+                settingsDetailContent
             }
             .listStyle(.automatic)
+            .id(selectedConfigDialogPane)
         }
         .frame(minWidth: 1100, minHeight: 760)
     }
@@ -84,6 +63,32 @@ extension ContentView {
     private var settingsGeneralPane: some View {
         Section("Allgemein") {
             Toggle("Schließen in Menüleiste minimieren", isOn: $hideWindowToMenuBarOnClose)
+        }
+    }
+
+    @ViewBuilder
+    private var settingsDetailContent: some View {
+        switch selectedConfigDialogPane {
+        case .general:
+            settingsGeneralPane
+        case .onDemandApps:
+            if let snapshot = viewModel.snapshot {
+                onDemandAppsSection(snapshot)
+            } else {
+                appSkeletonState
+            }
+        case .services:
+            if let snapshot = viewModel.snapshot {
+                multipassSection(snapshot)
+            } else {
+                appSkeletonState
+            }
+        case .customConfig:
+            if let snapshot = viewModel.snapshot {
+                customConfigSection(snapshot)
+            } else {
+                appSkeletonState
+            }
         }
     }
 }
