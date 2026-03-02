@@ -39,11 +39,7 @@ extension ContentView {
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
-            List {
-                settingsDetailContent
-            }
-            .listStyle(.automatic)
-            .id(selectedConfigDialogPane)
+            settingsDetailList(for: selectedConfigDialogPane)
         }
         .frame(minWidth: 1100, minHeight: 760)
     }
@@ -67,28 +63,40 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private var settingsDetailContent: some View {
-        switch selectedConfigDialogPane {
+    private func settingsDetailList(for pane: ConfigDialogPane) -> some View {
+        switch pane {
         case .general:
-            settingsGeneralPane
+            List {
+                settingsGeneralPane
+            }
+            .listStyle(.automatic)
         case .onDemandApps:
-            if let snapshot = viewModel.snapshot {
-                onDemandAppsSection(snapshot)
-            } else {
-                appSkeletonState
+            List {
+                if let snapshot = viewModel.snapshot {
+                    onDemandAppsSection(snapshot)
+                } else {
+                    appSkeletonState
+                }
             }
+            .listStyle(.automatic)
         case .services:
-            if let snapshot = viewModel.snapshot {
-                multipassSection(snapshot)
-            } else {
-                appSkeletonState
+            List {
+                if let snapshot = viewModel.snapshot {
+                    multipassSection(snapshot)
+                } else {
+                    appSkeletonState
+                }
             }
+            .listStyle(.automatic)
         case .customConfig:
-            if let snapshot = viewModel.snapshot {
-                customConfigSection(snapshot)
-            } else {
-                appSkeletonState
+            List {
+                if let snapshot = viewModel.snapshot {
+                    customConfigSection(snapshot)
+                } else {
+                    appSkeletonState
+                }
             }
+            .listStyle(.automatic)
         }
     }
 }
