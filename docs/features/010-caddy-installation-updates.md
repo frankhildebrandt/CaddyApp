@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-02-26
+- Last Updated: 2026-03-02
 
 ## Goal
 
@@ -32,6 +32,7 @@ Detect Caddy on macOS, display version information, and provide a safe update pa
 - Automatic install bootstrap prefers Homebrew, then falls back to direct GitHub release download (`~/Library/Application Support/CaddyApp/bin/caddy`).
 - If the upgrade fails, the app attempts recovery via `brew reinstall caddy` and reports the outcome.
 - Version comparison is basic semver parsing and should be hardened for edge cases.
+- Auto-setup repairs broken Homebrew service startup when the expected `$(brew --prefix)/etc/Caddyfile` is missing (creates a symlink to app-generated config or a fallback file, then restarts `brew services` if needed).
 
 ## Progress Log
 
@@ -39,3 +40,4 @@ Detect Caddy on macOS, display version information, and provide a safe update pa
 - 2026-02-26: Added automatic bootstrap attempt (`brew install caddy`) when Caddy is missing.
 - 2026-02-26: Added explicit update-available status and one-click Homebrew update flow with confirmation + recovery fallback.
 - 2026-02-26: Added Homebrew-free install/update fallback via direct GitHub release download into app-managed bin.
+- 2026-03-02: Added automatic Homebrew service repair for missing `Caddyfile` to fix recurring `brew services` `error 1` startup failures.

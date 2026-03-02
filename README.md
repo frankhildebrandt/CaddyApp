@@ -23,6 +23,7 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 - Optional zuschaltbare `*.traefik.me`-Alias-Hosts pro `*.localhost`-Route
 - Auto-Persistenz + Auto-Validate + Auto-Reload bei gueltigen Aenderungen
 - Caddy-Runtime-Steuerung (Start/Stop/Reload) inkl. Fallback-Start
+- Auto-Reparatur fuer Homebrew-Service, wenn `/opt/homebrew/etc/Caddyfile` fehlt (inkl. Service-Restart)
 - Privilegierte Aktionen ueber macOS-Admin-Dialog (kein versteckter Passwortprompt)
 - Root-CA-Erkennung und Trust-Unterstuetzung fuer lokale Zertifikate
 - Multipass-Service-Erkennung und -Steuerung (Start/Stop/force-stop)

@@ -3,6 +3,7 @@ import Foundation
 struct EnvironmentBootstrapService {
     private let shell = ShellCommandRunner()
     private let installService = CaddyInstallationService()
+    private let fileManager = FileManager.default
 
     func runAutoSetupIfNeeded(caddyInstall: CaddyInstallStatus, tlsStatus: TLSStatus) -> AutoSetupReport {
         var operations: [SetupOperationResult] = []
@@ -17,6 +18,9 @@ struct EnvironmentBootstrapService {
         let currentTLS = LocalhostTLSService().status()
         if currentInstall.isInstalled && !currentTLS.rootCertificatePresent {
             operations.append(generateLocalCARoot())
+        }
+        if let serviceRepair = repairMissingHomebrewCaddyfileIfNeeded() {
+            operations.append(serviceRepair)
         }
 
         return AutoSetupReport(
@@ -110,5 +114,97 @@ struct EnvironmentBootstrapService {
 
     private func escape(_ path: String) -> String {
         path.replacingOccurrences(of: "'", with: "'\\''")
+    }
+
+    private func repairMissingHomebrewCaddyfileIfNeeded() -> SetupOperationResult? {
+        let brewCheck = shell.runShell("command -v brew")
+        guard brewCheck.isSuccess else { return nil }
+
+        let prefixResult = shell.runShell("brew --prefix")
+        guard prefixResult.isSuccess else { return nil }
+        let brewPrefix = prefixResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !brewPrefix.isEmpty else { return nil }
+
+        let brewCaddyfileURL = URL(fileURLWithPath: brewPrefix)
+            .appendingPathComponent("etc", isDirectory: true)
+            .appendingPathComponent("Caddyfile", isDirectory: false)
+        if fileManager.fileExists(atPath: brewCaddyfileURL.path) {
+            return nil
+        }
+
+        let generatedConfigURL = AppPaths.appSupportDirectory
+            .appendingPathComponent("Caddyfile", isDirectory: false)
+        var actions: [String] = []
+
+        do {
+            try fileManager.createDirectory(
+                at: brewCaddyfileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+
+            if fileManager.fileExists(atPath: generatedConfigURL.path) {
+                try fileManager.createSymbolicLink(
+                    atPath: brewCaddyfileURL.path,
+                    withDestinationPath: generatedConfigURL.path
+                )
+                actions.append("Created symlink \(brewCaddyfileURL.path) -> \(generatedConfigURL.path)")
+            } else {
+                let fallback = """
+                :8080 {
+                    respond "CaddyApp bootstrap config"
+                }
+                """
+                try fallback.write(to: brewCaddyfileURL, atomically: true, encoding: .utf8)
+                actions.append("Created fallback Caddyfile at \(brewCaddyfileURL.path)")
+            }
+        } catch {
+            return SetupOperationResult(
+                kind: .repairHomebrewService,
+                succeeded: false,
+                message: "Homebrew Caddy service repair failed while preparing Caddyfile",
+                output: [actions.joined(separator: "\n"), error.localizedDescription]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n"),
+                performedAt: Date()
+            )
+        }
+
+        var restartAttempted = false
+        var restartSucceeded = true
+        let statusBefore = shell.runShell("brew services list | awk '$1==\"caddy\" {print $2}'")
+            .stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if !statusBefore.isEmpty, statusBefore != "none" {
+            restartAttempted = true
+            let restartResult = shell.runShell("brew services restart caddy")
+            let restartOutput = [restartResult.stdout, restartResult.stderr]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            restartSucceeded = restartResult.isSuccess
+            if !restartOutput.isEmpty {
+                actions.append(restartOutput)
+            }
+        }
+
+        let statusAfter = shell.runShell("brew services list | awk '$1==\"caddy\" {print $2}'")
+            .stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if !statusBefore.isEmpty {
+            actions.append("brew services status: \(statusBefore) -> \(statusAfter.isEmpty ? "unknown" : statusAfter)")
+        }
+
+        let succeeded = fileManager.fileExists(atPath: brewCaddyfileURL.path) && (!restartAttempted || restartSucceeded)
+        return SetupOperationResult(
+            kind: .repairHomebrewService,
+            succeeded: succeeded,
+            message: succeeded
+                ? "Repaired Homebrew Caddy service configuration"
+                : "Prepared Homebrew Caddyfile, but service restart failed",
+            output: actions.joined(separator: "\n"),
+            performedAt: Date()
+        )
     }
 }
