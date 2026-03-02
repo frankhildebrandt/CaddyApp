@@ -1,95 +1,116 @@
 # CaddyApp
 
-Bootstrap for a macOS SwiftUI app to configure and manage the Caddy web server with focus on localhost reverse proxies.
+CaddyApp ist eine macOS-Desktop-App (SwiftUI) zur lokalen Verwaltung von [Caddy](https://caddyserver.com/).
+Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter Caddy-Konfiguration und On-Demand-App-Routing.
 
-## Included in this bootstrap
+## Ziel des Projekts
 
-- SwiftUI macOS dashboard (`swift run`)
-- macOS menu bar (Systray) integration with dashboard reopen action
-- Local Caddy install/version detection
-- Automatic Caddy bootstrap install attempt (Homebrew first, direct download fallback) when missing
-- Caddy release metadata lookup (GitHub API)
-- Host-specific `*.localhost` reverse proxy Caddyfile preview with `tls internal` (no global wildcard site block)
-- For `*.localhost` hosts, generated Caddyfile also adds `*.traefik.me` aliases for active macOS interface IPv4 addresses
-- `Validate` / `Reload` automatically persist the current preview before executing Caddy commands
-- `Reload Caddy` falls back to `caddy start` if no Caddy instance is currently running
-- `Reload Caddy` retries via the macOS administrator dialog when elevated rights are required (no hidden CLI password prompt)
-- Caddy starts automatically on app startup (when installed) using the generated config
-- UI toggle shows the current Caddy runtime state and can start/stop Caddy
-- Generated config changes are auto-validated and auto-reloaded when valid
-- Custom Routes and On-Demand app changes are auto-saved and applied (manual save remains only for additional custom Caddyfile text)
-- Caddy can be installed/updated without Homebrew (app-managed binary in `~/Library/Application Support/CaddyApp/bin/caddy`)
-- Local Caddy CA root certificate path detection, auto-generation bootstrap, and trust guidance
-- Root certificate trust action uses the macOS administrator dialog (no terminal password prompt required)
-- Multipass / Podman discovery stubs (best effort)
-- Automatic Multipass route: `{vm-name}.mp.localhost` (AutoTLS via `tls internal`)
-- Dedicated Multipass tab page with runtime discovery and icon-based start/stop/systemd controls
-- Multipass VM discovery uses per-VM cards with direct runtime controls (`start` / `stop` / `force-stop`)
-- Multipass service config with per-service host/port/scheme, VM auto-start/stop, and systemd start/restart/stop controls
-- Multipass YAML auto-config import from `/etc/caddy-app.yaml` (service URLs follow `*.<service>.<vm>.mp.localhost`)
-- YAML-based app repository feed under `docs/repository/` (GitHub Pages ready)
-- On-Demand preset picker supports web repository sources (`repositories.yaml` / `apps/index.yaml`) with update + import flow
-- Feature progress documents in `docs/features/`
+- Caddy auf macOS einfach installieren, aktualisieren und steuern.
+- Lokale Reverse-Proxies fuer Entwicklungs- und Test-Setups verwalten.
+- AutoTLS (`tls internal`) inkl. Root-CA-Trust-Flow nutzbar machen.
+- Multipass-/Podman-Workloads erkennen und als Routen integrieren.
+- On-Demand-Apps per URL starten und bei Inaktivitaet wieder stoppen.
 
-Details zum YAML-Aufbau fuer Multipass (`/etc/caddy-app.yaml`):
-- `docs/features/040-runtime-discovery-multipass-podman.md` (Abschnitt `caddy-app.yaml Format`)
+## Funktionsumfang
 
-## Run
+- SwiftUI-Dashboard mit Menubar/Systray-Integration
+- Caddy-Erkennung inkl. Install-/Update-Flow
+  - Homebrew zuerst
+  - Fallback auf app-verwaltetes Binary unter
+    `~/Library/Application Support/CaddyApp/bin/caddy`
+- Caddy-Release-Monitoring (GitHub API)
+- Generierte Caddy-Konfiguration fuer Host-Routen auf `*.localhost`
+- Auto-Persistenz + Auto-Validate + Auto-Reload bei gueltigen Aenderungen
+- Caddy-Runtime-Steuerung (Start/Stop/Reload) inkl. Fallback-Start
+- Privilegierte Aktionen ueber macOS-Admin-Dialog (kein versteckter Passwortprompt)
+- Root-CA-Erkennung und Trust-Unterstuetzung fuer lokale Zertifikate
+- Multipass-Service-Erkennung und -Steuerung (Start/Stop/force-stop)
+- Multipass-Import aus `/etc/caddy-app.yaml`
+- YAML-basierte Web-Repositories fuer On-Demand-App-Presets
 
-```bash
-swift run
-```
+## Voraussetzungen
 
-## Makefile
+- macOS 14 oder neuer
+- Swift 6.x (SwiftPM)
+- Optional:
+  - Homebrew (fuer bevorzugte Caddy-Installation)
+  - Multipass / Podman (fuer Runtime-Discovery-Features)
+
+## Schnellstart
 
 ```bash
-make help
 make build
 make open-app
-make check
 ```
 
-`make build` erzeugt ein vollstaendiges macOS-App-Bundle unter `_build/debug/CaddyApp.app` (Release: `_build/release/CaddyApp.app`).
+Alternativ direkt starten:
 
-## Dokumentation
+```bash
+make run
+```
 
-- Projekt-Dokumentation: `docs/PROJECT.md`
-- Feature-Dokumente: `docs/features/`
-- YAML Repository Feed: `docs/repository/`
-- Agent-Regeln: `AGENTS.md`
+## Build und Entwicklung
+
+Wichtige Make-Targets:
+
+```bash
+make help      # Targets anzeigen
+make build     # Debug-Build + .app-Bundle
+make release   # Release-Build + .app-Bundle
+make run       # App ueber SwiftPM starten
+make test      # Tests ausfuehren
+make check     # build + test
+make docs      # Feature-Dokumente auflisten
+```
+
+Build-Artefakte:
+
+- Debug: `_build/debug/CaddyApp.app`
+- Release: `_build/release/CaddyApp.app`
+
+## Projektstruktur
+
+- `Sources/CaddyApp/Views/` - SwiftUI-Oberflaechen
+- `Sources/CaddyApp/ViewModels/` - UI-State und Orchestrierung
+- `Sources/CaddyApp/Services/` - Caddy-, Runtime- und Systemintegration
+- `Sources/CaddyApp/Models/` - Domain-Modelle und Feature-Katalog
+- `docs/features/` - Feature-Status und Fortschrittsdokumente
+- `docs/repository/` - YAML-Feeds fuer Web-Repositories
+- `scripts/` - Build- und Automatisierungs-Skripte
+- `assets/` - App- und Systray-Grafiken
+
+## YAML-Repository-Feed
+
+Der initiale Repository-Feed liegt unter:
+
+- `docs/repository/repositories.yaml`
+- `docs/repository/apps/index.yaml`
+- `docs/repository/apps/*.yaml`
+
+Dieser Bereich ist fuer GitHub Pages vorgesehen und dient als Quelle fuer importierbare On-Demand-App-Definitionen.
+
+## Multipass-Konfiguration
+
+Optional kann pro VM eine Konfiguration aus `/etc/caddy-app.yaml` importiert werden.
+Typische Inhalte:
+
+- Service-Name, Port, Scheme (`http`/`https`)
+- Host-/Wildcard-Routing (z. B. `*.<service>.<vm>.mp.localhost`)
+- VM Auto-Start/Auto-Stop
+- systemd-Steuerung (`start`, `restart`, `stop`)
+
+Details siehe:
+`docs/features/040-runtime-discovery-multipass-podman.md`.
 
 ## Releases
 
-> **Hinweis:** Der Build benötigt Swift >= 6.2.3. Ältere Versionen (z. B. 6.2.0) lösen einen Swift-Compiler-Assertion-Fehler aus (`LocalDiscriminator is set multiple times`).
+GitHub-Releases triggern den Build-Workflow in `.github/workflows/release.yml`.
+Dabei wird ein Release-Build erstellt, als macOS-App gebuendelt und als ZIP-Artefakt angehaengt.
 
-Jeder GitHub Release loest automatisch einen CI-Build aus (`.github/workflows/release.yml`):
+## Dokumentation
 
-1. `swift build -c release` baut das Release-Binary auf einem macOS-Runner.
-2. Das App-Bundle wird per `make_macos_app_bundle.sh` zusammengebaut.
-3. `CaddyApp.zip` wird als Download-Asset an den GitHub Release angehaengt.
-
-Die App-Version im `Info.plist` wird direkt aus dem Release-Tag uebernommen.
-
-## Automatisierung
-
-`make build` und `make release` erstellen keinen automatischen Git-Commit.
-Der Commit wird nach erfolgreichem Build durch den Coding Agent mit kurzer, praegnanter Message ausgefuehrt.
-
-Bei Feature-Branches (`feat/...`, `feature/...`) kann vor dem Agent-Commit automatisch ein Feature-Dokument unter `docs/features/` angelegt werden, falls noch keines geaendert wurde.
-
-- Force-Flag: `CADDYAPP_FEATURE=1 make build`
-
-## YAML Repository Feed
-
-Die initialen Preset-Apps liegen als YAML-Dateien fuer Web-Repositories vor:
-
-- `docs/repository/repositories.yaml` (Repository-Index)
-- `docs/repository/apps/index.yaml` (App-Index)
-- `docs/repository/apps/*.yaml` (einzelne App-Definitionen)
-
-## Next engineering steps
-
-1. Harden config apply flow with confirmations, backups, and rollback.
-2. Add privilege-aware trust/install flow for local root certificate.
-3. Add route approval UI for discovered Multipass/Podman workloads.
-4. Add background release checks and user notifications.
+- Projektueberblick: `docs/PROJECT.md`
+- Feature-Index: `docs/features/000-overview.md`
+- Feature-Details: `docs/features/*.md`
+- Repository-Feed-Doku: `docs/repository/README.md`
+- Agent-Regeln: `AGENTS.md`
