@@ -2,6 +2,30 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.openURL) private var openURL
+    private enum ConfigDialogPane: String, CaseIterable, Identifiable {
+        case onDemandApps = "on_demand_apps"
+        case services
+        case customConfig = "custom_config"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .onDemandApps: return "On-Demand Apps"
+            case .services: return "Services"
+            case .customConfig: return "Custom Config"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .onDemandApps: return "bolt.badge.clock"
+            case .services: return "shippingbox"
+            case .customConfig: return "slider.horizontal.3"
+            }
+        }
+    }
+
     private enum OnDemandSubTab: String, CaseIterable, Identifiable {
         case config
         case hostLog = "host_log"
@@ -78,6 +102,8 @@ struct ContentView: View {
     @State private var onDemandContainerLogByAppID: [UUID: String] = [:]
     @State private var onDemandEventLogByAppID: [UUID: String] = [:]
     @State private var onDemandLoadingByAppID: [UUID: Bool] = [:]
+    @State private var showConfigurationDialog = false
+    @State private var selectedConfigDialogPane: ConfigDialogPane? = .onDemandApps
 
     var body: some View {
         VStack(spacing: 0) {
@@ -122,6 +148,9 @@ struct ContentView: View {
                         viewModel.refreshAppRepositoryPresets()
                     }
                 }
+        }
+        .sheet(isPresented: $showConfigurationDialog) {
+            configurationDialog
         }
         .confirmationDialog(
             "Caddy aktualisieren?",
@@ -176,11 +205,23 @@ struct ContentView: View {
                     case .runtime:
                         runtimeSection(snapshot)
                     case .multipass:
-                        multipassSection(snapshot)
+                        movedToConfigurationDialogView(
+                            title: "Services wurden verschoben",
+                            description: "Multipass- und Service-Konfigurationen sind jetzt im zentralen Konfigurationsdialog.",
+                            pane: .services
+                        )
                     case .onDemandApps:
-                        onDemandAppsSection(snapshot)
+                        movedToConfigurationDialogView(
+                            title: "On-Demand Konfiguration wurde verschoben",
+                            description: "On-Demand-Apps werden jetzt im zentralen Konfigurationsdialog verwaltet.",
+                            pane: .onDemandApps
+                        )
                     case .custom:
-                        customConfigSection(snapshot)
+                        movedToConfigurationDialogView(
+                            title: "Custom Config wurde verschoben",
+                            description: "Custom Routes und zusätzliche Caddyfile-Konfiguration liegen jetzt im zentralen Konfigurationsdialog.",
+                            pane: .customConfig
+                        )
                     case .config:
                         configSection(snapshot)
                     case .logs:
@@ -224,6 +265,12 @@ struct ContentView: View {
                 Label("Menüleiste", systemImage: "menubar.dock.rectangle")
             }
             .buttonStyle(.bordered)
+            Button {
+                showConfigurationDialog = true
+            } label: {
+                Label("Konfiguration", systemImage: "gearshape")
+            }
+            .buttonStyle(.bordered)
             Toggle("Schließen versteckt", isOn: $hideWindowToMenuBarOnClose)
                 .toggleStyle(.checkbox)
             Button {
@@ -235,6 +282,45 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(20)
+    }
+
+    private var configurationDialog: some View {
+        NavigationSplitView {
+            List(selection: $selectedConfigDialogPane) {
+                ForEach(ConfigDialogPane.allCases) { pane in
+                    Label(pane.title, systemImage: pane.systemImage)
+                        .tag(Optional(pane))
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 190, ideal: 230)
+        } detail: {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch selectedConfigDialogPane ?? .onDemandApps {
+                    case .onDemandApps:
+                        if let snapshot = viewModel.snapshot {
+                            onDemandAppsSection(snapshot)
+                        } else {
+                            appSkeletonState
+                        }
+                    case .services:
+                        if let snapshot = viewModel.snapshot {
+                            multipassSection(snapshot)
+                        } else {
+                            appSkeletonState
+                        }
+                    case .customConfig:
+                        if let snapshot = viewModel.snapshot {
+                            customConfigSection(snapshot)
+                        } else {
+                            appSkeletonState
+                        }
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .frame(minWidth: 1100, minHeight: 760)
     }
 
     private func dashboardSection(_ snapshot: DashboardSnapshot) -> some View {
@@ -1337,6 +1423,27 @@ struct ContentView: View {
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    private func movedToConfigurationDialogView(
+        title: String,
+        description: String,
+        pane: ConfigDialogPane
+    ) -> some View {
+        GroupBox(title) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(description)
+                    .foregroundStyle(.secondary)
+                Button {
+                    selectedConfigDialogPane = pane
+                    showConfigurationDialog = true
+                } label: {
+                    Label("Im Konfigurationsdialog öffnen", systemImage: "gearshape")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.top, 4)
         }
     }
 
