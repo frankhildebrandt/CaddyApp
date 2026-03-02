@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-02-27
+- Last Updated: 2026-03-02
 
 ## Goal
 
@@ -42,7 +42,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - Ephe template source: `https://github.com/unvalley/ephe`.
 - Implementation uses a local HTTP gateway (`127.0.0.1:49215`) that Caddy proxies to for on-demand hosts.
 - Runtime tab supports manual start/stop controls in addition to URL-triggered activation.
-- Logging tab records CLI commands plus start/stop and warm-up events for debugging.
+- Logging tab records start/stop and warm-up events; concrete CLI calls are only logged on command failures.
 - On-demand app cards include per-app observability/ops sub-tabs (Config, Host-Log, Container/Pod-Log, Shell, Eventlog).
 - Current limitation: no chunked request-body forwarding yet.
 
@@ -66,3 +66,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Fixed pod start fallback for failed multi-step `runArguments`: pod-based apps now return the original start error instead of falling back to `pod start` (which could leave only an infra container running).
 - 2026-02-27: Added Penpot preset (local catalog + YAML repository) using an official multi-service stack translated to a Podman pod (`frontend`, `backend`, `exporter`, `postgres`, `valkey`).
 - 2026-02-27: Reworked pod deployment execution to use explicit sequential `runSteps` (instead of single `&&` shell chains), including tolerant handling of "already exists" conflicts and controlled fallback to existing unit start.
+- 2026-03-02: Reduced CLI logging noise: command lines are now only written when spawn/exit errors occur.

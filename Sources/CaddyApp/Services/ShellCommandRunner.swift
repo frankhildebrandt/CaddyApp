@@ -12,7 +12,6 @@ struct ShellCommandRunner {
     @discardableResult
     func run(_ launchPath: String, arguments: [String] = []) -> CommandResult {
         let renderedCommand = ([launchPath] + arguments.map(shellEscape)).joined(separator: " ")
-        AppLogService.logEvent("CLI exec: \(renderedCommand)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
@@ -35,15 +34,12 @@ struct ShellCommandRunner {
         let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
 
         let result = CommandResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
-        let combinedOutput = [stdout, stderr]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let outputSnippet = combinedOutput.isEmpty ? "(no output)" : String(combinedOutput.prefix(2000))
-        let level = result.isSuccess ? "INFO" : "ERROR"
-        if level == "INFO" {
-            AppLogService.logEvent("CLI exit=\(result.exitCode): \(renderedCommand)\n\(outputSnippet)")
-        } else {
+        if !result.isSuccess {
+            let combinedOutput = [stdout, stderr]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let outputSnippet = combinedOutput.isEmpty ? "(no output)" : String(combinedOutput.prefix(2000))
             AppLogService.logError("CLI exit=\(result.exitCode): \(renderedCommand)\n\(outputSnippet)")
         }
         return result
@@ -52,7 +48,6 @@ struct ShellCommandRunner {
     func runShell(_ command: String) -> CommandResult {
         let managedBin = AppPaths.managedBinDirectory.path.replacingOccurrences(of: "'", with: "'\\''")
         let wrappedCommand = "export PATH='\(managedBin)':$PATH; \(command)"
-        AppLogService.logEvent("CLI shell: \(command)")
         return run("/bin/zsh", arguments: ["-lc", wrappedCommand])
     }
 
