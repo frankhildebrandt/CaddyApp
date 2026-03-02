@@ -21,18 +21,6 @@ struct AppHeaderView: View {
                 }
             }
             Spacer()
-            Button(action: onHideToMenuBar) {
-                Label("Menüleiste", systemImage: "menubar.dock.rectangle")
-            }
-            .buttonStyle(.bordered)
-
-            Button(action: onOpenSettings) {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .buttonStyle(.bordered)
-
-            Toggle("Schließen versteckt", isOn: $hideWindowToMenuBarOnClose)
-                .toggleStyle(.checkbox)
 
             Button(action: onRefresh) {
                 Label(isLoading ? "Lädt..." : "Aktualisieren", systemImage: "arrow.clockwise")
