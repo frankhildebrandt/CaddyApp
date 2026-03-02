@@ -826,7 +826,11 @@ struct ContentView: View {
         serviceIndices: [Int],
         statusesByID: [UUID: MultipassServiceRuntimeStatus]
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let vmState = target?.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "unknown"
+        let canStart = vmState == "stopped"
+        let canStop = vmState == "running"
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Label(vmName, systemImage: "shippingbox.fill")
@@ -850,30 +854,34 @@ struct ContentView: View {
             }
 
             HStack(spacing: 8) {
-                Button {
-                    viewModel.controlMultipassVM(vmName: vmName, action: .start)
-                } label: {
-                    Label("Start", systemImage: "play.circle.fill")
+                if canStart {
+                    Button {
+                        viewModel.controlMultipassVM(vmName: vmName, action: .start)
+                    } label: {
+                        Label("Start", systemImage: "play.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
 
-                Button {
-                    viewModel.controlMultipassVM(vmName: vmName, action: .stop)
-                } label: {
-                    Label("Stop", systemImage: "stop.circle.fill")
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
+                if canStop {
+                    Button {
+                        viewModel.controlMultipassVM(vmName: vmName, action: .stop)
+                    } label: {
+                        Label("Stop", systemImage: "stop.circle.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
 
-                Button(role: .destructive) {
-                    viewModel.controlMultipassVM(vmName: vmName, action: .forceStop)
-                } label: {
-                    Label("Force-Stop", systemImage: "exclamationmark.octagon.fill")
+                    Button(role: .destructive) {
+                        viewModel.controlMultipassVM(vmName: vmName, action: .forceStop)
+                    } label: {
+                        Label("Force-Stop", systemImage: "exclamationmark.octagon.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
                 }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isChangingMultipassVMRuntime || viewModel.isChangingMultipassServiceRuntime)
 
                 Spacer()
 
