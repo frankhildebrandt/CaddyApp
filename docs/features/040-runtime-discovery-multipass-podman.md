@@ -43,6 +43,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - Bootstrap discovery is best-effort and tolerant of missing commands or JSON format drift.
 - Podman port extraction is intentionally simple; more robust port mapping is needed.
 - Multipass address inference probes common HTTP ports (`80`, `8080`, `8081`, `3000`, `8090`) first, then common HTTPS ports (`443`, `8443`) with certificate verification disabled for detection.
+- Port probing is executed in-app via native HTTP requests (`URLSession`) instead of shelling out to `curl`.
 - Multipass VM names are sanitized into DNS labels before generating `{vm}.mp.localhost`.
 - Editable approval flow for proposed routes remains future work and is tracked outside this bootstrap feature.
 - Runtime discovery refresh is implemented as periodic background polling (best effort), not an event-driven runtime watcher.
@@ -115,3 +116,4 @@ services:
 - 2026-03-02: Reworked Multipass tab to VM cards, added direct VM runtime controls (including force-stop), and moved "Service hinzufügen" into each VM card.
 - 2026-03-02: Gateway proxy now accepts self-signed TLS certificates for Multipass services configured with `scheme: https`, avoiding spurious 502 errors.
 - 2026-03-02: Re-enabled default wildcard alias route generation for VM apex hosts (`*.{vm}.mp.localhost`) in generated Caddy config.
+- 2026-03-02: Replaced shell-based `curl` probing for Multipass VM port detection with app-native HTTP requests.

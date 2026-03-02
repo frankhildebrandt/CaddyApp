@@ -77,13 +77,72 @@ struct RuntimeDiscoveryService {
     }
 
     private func probe(url: String, insecureTLS: Bool = false) -> Bool {
-        let escapedURL = shellEscape(url)
-        let insecureFlag = insecureTLS ? "-k " : ""
-        let command = "curl \(insecureFlag)-sS -o /dev/null --connect-timeout 1 --max-time 2 '\(escapedURL)'"
-        return shell.runShell(command).isSuccess
+        guard let endpoint = URL(string: url) else { return false }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 2
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 2
+        configuration.timeoutIntervalForResource = 2
+
+        let delegate = ProbeURLSessionDelegate(allowInsecureTLS: insecureTLS)
+        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        let semaphore = DispatchSemaphore(value: 0)
+        let probeResult = ProbeResult()
+
+        let task = session.dataTask(with: request) { _, response, _ in
+            if response != nil {
+                probeResult.markReachable()
+            }
+            semaphore.signal()
+        }
+
+        task.resume()
+        _ = semaphore.wait(timeout: .now() + 3)
+        task.cancel()
+        session.invalidateAndCancel()
+        return probeResult.isReachable
+    }
+}
+
+private final class ProbeURLSessionDelegate: NSObject, URLSessionDelegate {
+    private let allowInsecureTLS: Bool
+
+    init(allowInsecureTLS: Bool) {
+        self.allowInsecureTLS = allowInsecureTLS
     }
 
-    private func shellEscape(_ value: String) -> String {
-        value.replacingOccurrences(of: "'", with: "'\\''")
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard allowInsecureTLS,
+              challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+}
+
+private final class ProbeResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var isReachable: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func markReachable() {
+        lock.lock()
+        value = true
+        lock.unlock()
     }
 }
