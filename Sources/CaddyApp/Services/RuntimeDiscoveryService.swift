@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 struct RuntimeDiscoveryService {
     private let shell = ShellCommandRunner()
@@ -66,7 +67,7 @@ struct RuntimeDiscoveryService {
 
     private func firstReachableHTTPPort(on host: String) -> Int? {
         multipassHTTPPorts.first { port in
-            probe(url: "http://\(host):\(port)")
+            tcpProbe(host: host, port: port)
         }
     }
 
@@ -104,6 +105,33 @@ struct RuntimeDiscoveryService {
         task.cancel()
         session.invalidateAndCancel()
         return probeResult.isReachable
+    }
+
+    private func tcpProbe(host: String, port: Int) -> Bool {
+        guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return false }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let queue = DispatchQueue(label: "caddyapp.runtime-discovery.tcp-probe")
+        let result = ProbeResult()
+
+        let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                result.markReachable()
+                connection.cancel()
+                semaphore.signal()
+            case .failed, .cancelled:
+                semaphore.signal()
+            default:
+                break
+            }
+        }
+
+        connection.start(queue: queue)
+        _ = semaphore.wait(timeout: .now() + 2)
+        connection.cancel()
+        return result.isReachable
     }
 }
 
