@@ -3,7 +3,7 @@ import Network
 
 struct RuntimeDiscoveryService {
     private let shell = ShellCommandRunner()
-    private let multipassHTTPPorts = [80, 8080, 8081, 3000, 8090]
+    private let multipassHTTPPorts = [8080, 80, 8081, 3000, 8090]
     private let multipassHTTPSPorts = [443, 8443]
 
     func discoverTargets() -> [RuntimeTarget] {
@@ -27,7 +27,7 @@ struct RuntimeDiscoveryService {
             guard let name = item["name"] as? String else { return nil }
             let state = (item["state"] as? String) ?? "unknown"
             let ipv4 = (item["ipv4"] as? [String])?.first ?? ""
-            let address = multipassAddress(for: ipv4)
+            let address = multipassAddress(for: ipv4, vmName: name, state: state)
             return RuntimeTarget(name: name, source: .multipass, address: address, status: state)
         }
     }
@@ -51,7 +51,7 @@ struct RuntimeDiscoveryService {
         }
     }
 
-    private func multipassAddress(for ipv4: String) -> String {
+    private func multipassAddress(for ipv4: String, vmName: String, state: String) -> String {
         guard !ipv4.isEmpty else { return "(no ip)" }
 
         if let httpPort = firstReachableHTTPPort(on: ipv4) {
@@ -62,7 +62,12 @@ struct RuntimeDiscoveryService {
             return "https://\(ipv4):\(httpsPort)"
         }
 
-        return "\(ipv4):80"
+        if state.lowercased() == "running",
+           let guestHTTPPort = firstGuestListeningHTTPPort(vmName: vmName) {
+            return "\(ipv4):\(guestHTTPPort)"
+        }
+
+        return "\(ipv4):\(multipassHTTPPorts.first ?? 8080)"
     }
 
     private func firstReachableHTTPPort(on host: String) -> Int? {
@@ -132,6 +137,40 @@ struct RuntimeDiscoveryService {
         _ = semaphore.wait(timeout: .now() + 2)
         connection.cancel()
         return result.isReachable
+    }
+
+    private func firstGuestListeningHTTPPort(vmName: String) -> Int? {
+        let escapedVMName = shellEscape(vmName)
+        let command = "multipass exec \(escapedVMName) -- sh -lc 'ss -H -ltn 2>/dev/null || netstat -ltn 2>/dev/null'"
+        let result = shell.runShell(command)
+        guard result.isSuccess else { return nil }
+
+        let output = result.stdout
+        let ports = listeningPorts(from: output)
+        return multipassHTTPPorts.first { ports.contains($0) }
+    }
+
+    private func listeningPorts(from output: String) -> Set<Int> {
+        let pattern = #":([0-9]{2,5})(?:\s|$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(output.startIndex..<output.endIndex, in: output)
+        let matches = regex.matches(in: output, options: [], range: range)
+
+        var ports: Set<Int> = []
+        for match in matches {
+            guard match.numberOfRanges > 1,
+                  let portRange = Range(match.range(at: 1), in: output),
+                  let port = Int(output[portRange]),
+                  (1...65535).contains(port) else {
+                continue
+            }
+            ports.insert(port)
+        }
+        return ports
+    }
+
+    private func shellEscape(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 
