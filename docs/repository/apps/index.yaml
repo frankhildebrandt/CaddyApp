@@ -2,7 +2,7 @@ apiVersion: caddyapp/v1
 kind: AppIndex
 metadata:
   name: CaddyApp Presets
-  publishedAt: 2026-02-27
+  publishedAt: 2026-03-04
 spec:
   apps:
     - key: loki
@@ -15,3 +15,5 @@ spec:
       url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/ephe.yaml
     - key: penpot
       url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/penpot.yaml
+    - key: authentik
+      url: https://frankhildebrandt.github.io/CaddyApp/repository/apps/authentik.yaml

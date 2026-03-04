@@ -794,6 +794,9 @@ actor OnDemandAppsService {
         if name.contains("penpot") || unitName.contains("penpot") {
             return 180
         }
+        if name.contains("authentik") || unitName.contains("authentik") {
+            return 240
+        }
         return 30
     }
 

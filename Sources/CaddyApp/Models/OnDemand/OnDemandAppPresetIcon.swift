@@ -13,6 +13,8 @@ enum OnDemandAppPresetIcon {
             return "doc.text.magnifyingglass"
         case "penpot":
             return "pencil.and.ruler"
+        case "authentik":
+            return "person.badge.shield.checkmark"
         default:
             return "shippingbox"
         }

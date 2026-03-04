@@ -105,6 +105,7 @@ final class ModelRefactorTests: XCTestCase {
 
     func testOnDemandAppPresetIconFallback() {
         XCTAssertEqual(OnDemandAppPresetIcon.forKey("grafana"), "chart.xyaxis.line")
+        XCTAssertEqual(OnDemandAppPresetIcon.forKey("authentik"), "person.badge.shield.checkmark")
         XCTAssertEqual(OnDemandAppPresetIcon.forKey("unknown"), "shippingbox")
     }
 }

@@ -115,7 +115,34 @@ enum OnDemandAppPresetCatalog {
                 healthPath: "/"
             ),
             notes: "Uses the official Penpot multi-service container stack translated from the upstream docker-compose to a single Podman pod (first startup can take longer)."
+        ),
+        OnDemandAppPreset(
+            key: "authentik",
+            title: "authentik",
+            iconSystemName: "person.badge.shield.checkmark",
+            summary: "Identity provider (SSO) with server+worker plus PostgreSQL and Redis on port 9000.",
+            app: OnDemandAppDraft(
+                name: "authentik",
+                runtime: .podman,
+                unitKind: .pod,
+                unitName: "caddyapp-authentik",
+                host: "authentik.localhost",
+                targetPort: 9000,
+                idleTimeoutSeconds: 1800,
+                enabled: true,
+                startMode: .runCommand,
+                runArguments: "",
+                runSteps: [
+                    "pod create --name caddyapp-authentik -p 9000:9000",
+                    "run -d --pod caddyapp-authentik --name caddyapp-authentik-postgres -e POSTGRES_DB=authentik -e POSTGRES_USER=authentik -e POSTGRES_PASSWORD=authentik-local-dev-pass -v caddyapp-authentik-postgres:/var/lib/postgresql/data:Z postgres:16-alpine",
+                    "run -d --pod caddyapp-authentik --name caddyapp-authentik-redis valkey/valkey:8.1",
+                    "run --rm --pod caddyapp-authentik --name caddyapp-authentik-db-wait postgres:16-alpine sh -lc 'until pg_isready -h 127.0.0.1 -p 5432 -U authentik -d authentik; do sleep 2; done'",
+                    "run -d --pod caddyapp-authentik --name caddyapp-authentik-server -e AUTHENTIK_SECRET_KEY='caddyapp-authentik-insecure-dev-secret-change-me' -e AUTHENTIK_REDIS__HOST=127.0.0.1 -e AUTHENTIK_POSTGRESQL__HOST=127.0.0.1 -e AUTHENTIK_POSTGRESQL__USER=authentik -e AUTHENTIK_POSTGRESQL__NAME=authentik -e AUTHENTIK_POSTGRESQL__PASSWORD=authentik-local-dev-pass -e AUTHENTIK_ERROR_REPORTING__ENABLED=false -v caddyapp-authentik-media:/media:Z -v caddyapp-authentik-templates:/templates:Z ghcr.io/goauthentik/server:latest server",
+                    "run -d --pod caddyapp-authentik --name caddyapp-authentik-worker -e AUTHENTIK_SECRET_KEY='caddyapp-authentik-insecure-dev-secret-change-me' -e AUTHENTIK_REDIS__HOST=127.0.0.1 -e AUTHENTIK_POSTGRESQL__HOST=127.0.0.1 -e AUTHENTIK_POSTGRESQL__USER=authentik -e AUTHENTIK_POSTGRESQL__NAME=authentik -e AUTHENTIK_POSTGRESQL__PASSWORD=authentik-local-dev-pass -e AUTHENTIK_ERROR_REPORTING__ENABLED=false -v caddyapp-authentik-media:/media:Z -v caddyapp-authentik-certs:/certs:Z -v caddyapp-authentik-templates:/templates:Z ghcr.io/goauthentik/server:latest worker"
+                ],
+                healthPath: "/if/flow/initial-setup/"
+            ),
+            notes: "Based on the upstream authentik docker-compose setup translated to a single Podman pod. Uses insecure local-dev defaults for secret and DB password; change before non-local usage."
         )
     ]
 }
-

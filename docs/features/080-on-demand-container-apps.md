@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-03-02
+- Last Updated: 2026-03-04
 
 ## Goal
 
@@ -16,7 +16,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - In scope: Map each app to one or more URLs handled by CaddyApp/Caddy.
 - In scope: Auto-start app on incoming request to the configured URL.
 - In scope: Auto-stop app/container/pod after a user-defined period without requests.
-- In scope: Sensible default app templates for Loki, Grafana, Kimai, Ephe (`https://github.com/unvalley/ephe`), and Penpot (`https://github.com/penpot/penpot`).
+- In scope: Sensible default app templates for Loki, Grafana, Kimai, Ephe (`https://github.com/unvalley/ephe`), Penpot (`https://github.com/penpot/penpot`), and authentik (`https://goauthentik.io/`).
 - Out of scope: Full container image build pipeline or compose authoring UI (initial version may use presets + simple runtime args).
 - Out of scope: Multi-node orchestration (Kubernetes, Swarm, Nomad).
 
@@ -26,7 +26,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - [x] First request to the app URL triggers best-effort start of the corresponding container or pod before proxying traffic.
 - [x] App is stopped automatically when no requests were received for the configured timeout window.
 - [x] Repeated requests within the timeout window keep the app running (idle timer extends/reset on access).
-- [x] Default templates for Loki, Grafana, Kimai, Ephe, and Penpot can be added from the UI with editable values.
+- [x] Default templates for Loki, Grafana, Kimai, Ephe, Penpot, and authentik can be added from the UI with editable values.
 - [x] App state (stopped / starting / running / stopping / error) is visible in the app UI.
 - [x] Failures to start/stop are surfaced to the user with actionable logs or error messages.
 - [x] Deleting an on-demand app also removes the associated runtime unit (container/pod).
@@ -67,3 +67,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Added Penpot preset (local catalog + YAML repository) using an official multi-service stack translated to a Podman pod (`frontend`, `backend`, `exporter`, `postgres`, `valkey`).
 - 2026-02-27: Reworked pod deployment execution to use explicit sequential `runSteps` (instead of single `&&` shell chains), including tolerant handling of "already exists" conflicts and controlled fallback to existing unit start.
 - 2026-03-02: Reduced CLI logging noise: command lines are now only written when spawn/exit errors occur.
+- 2026-03-04: Added authentik preset (local catalog + YAML repository) based on upstream docker-compose translated to a Podman pod (`server`, `worker`, `postgres`, `redis`).
