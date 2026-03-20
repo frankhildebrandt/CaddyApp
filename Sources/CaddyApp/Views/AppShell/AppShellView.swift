@@ -83,13 +83,19 @@ struct AppShellView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let snapshot = viewModel.snapshot {
-                    switch selectedTab ?? .overview {
-                    case .overview:
+        if let snapshot = viewModel.snapshot {
+            switch selectedTab ?? .overview {
+            case .overview:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                    case .setupStatus:
+                    }
+                    .padding(20)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            case .setupStatus:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         SystemTabView(
                             snapshot: snapshot,
                             viewModel: viewModel,
@@ -102,7 +108,13 @@ struct AppShellView: View {
                                 }
                             )
                         )
-                    case .routing:
+                    }
+                    .padding(20)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            case .routing:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         ConfigTabView(
                             snapshot: snapshot,
                             viewModel: viewModel,
@@ -115,34 +127,42 @@ struct AppShellView: View {
                                 }
                             )
                         )
-                    case .services:
-                        ServicesWorkspaceView(snapshot: snapshot, viewModel: viewModel)
-                    case .apps:
-                        AppsWorkspaceView(
-                            snapshot: snapshot,
-                            viewModel: viewModel,
-                            presentationCoordinator: presentationCoordinator
-                        )
-                    case .monitoring:
-                        MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
                     }
-                } else if viewModel.isLoading {
-                    AppSkeletonView()
-                        .padding(.top, 6)
-                } else if (selectedTab ?? .overview) == .monitoring {
-                    MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
-                } else {
-                    Text("No data loaded yet")
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 24)
+                    .padding(20)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            case .services:
+                ServicesWorkspaceView(snapshot: snapshot, viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            case .apps:
+                AppsWorkspaceView(
+                    snapshot: snapshot,
+                    viewModel: viewModel,
+                    presentationCoordinator: presentationCoordinator
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            case .monitoring:
+                MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(20)
+        } else if viewModel.isLoading {
+            AppSkeletonView()
+                .padding(.top, 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if (selectedTab ?? .overview) == .monitoring {
+            MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            Text("No data loaded yet")
+                .foregroundStyle(.secondary)
+                .padding(.top, 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+}
 
-    private var dialogTitle: String {
+private extension AppShellView {
+    var dialogTitle: String {
         switch presentationCoordinator.activeDialog {
         case .caddyUpdate:
             return "Caddy aktualisieren?"
