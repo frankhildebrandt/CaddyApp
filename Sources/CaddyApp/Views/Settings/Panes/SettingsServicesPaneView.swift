@@ -42,6 +42,9 @@ struct SettingsServicesPaneView: View {
 
                     HStack(spacing: 10) {
                         Button {
+                            if multipassViewModel.assistant.vmName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                multipassViewModel.assistant.vmName = sortedVMNames.first ?? ""
+                            }
                             multipassViewModel.prepareAssistant(
                                 defaultVMName: sortedVMNames.first,
                                 existingServices: dashboardViewModel.multipassServices
@@ -283,12 +286,6 @@ struct SettingsServicesPaneView: View {
             }
             Divider()
         }
-        .onAppear {
-            guard let vmName else { return }
-            if serviceBinding.wrappedValue.vmName != vmName {
-                serviceBinding.wrappedValue.vmName = vmName
-            }
-        }
     }
 
     private func assistantRow(vmNames: [String]) -> some View {
@@ -343,12 +340,6 @@ struct SettingsServicesPaneView: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
-        }
-        .onAppear {
-            multipassViewModel.prepareAssistant(
-                defaultVMName: vmNames.first,
-                existingServices: dashboardViewModel.multipassServices
-            )
         }
     }
 
