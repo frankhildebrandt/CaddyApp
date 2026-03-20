@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsRootView: View {
     @ObservedObject var dashboardViewModel: DashboardViewModel
-    @Binding var hideWindowToMenuBarOnClose: Bool
+    @ObservedObject var presentationCoordinator: AppPresentationCoordinator
     @StateObject private var settingsViewModel = SettingsViewModel()
     @StateObject private var onDemandViewModel = OnDemandViewModel()
     @StateObject private var multipassViewModel = MultipassViewModel()
@@ -21,35 +21,61 @@ struct SettingsRootView: View {
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 210, ideal: 250)
         } detail: {
-            settingsDetail(for: settingsViewModel.selectedPane ?? .general)
+            settingsDetail(for: settingsViewModel.selectedPane ?? .appBehavior)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 980, minHeight: 700)
+        .onChange(of: dashboardViewModel.customRoutes) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.onDemandApps) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.multipassServices) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.appRepositories) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.enableTraefikMeAliases) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.hideWindowToMenuBarOnClose) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.repositoryAutoUpdateEnabled) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: dashboardViewModel.repositoryAutoUpdateIntervalHours) { _, _ in
+            dashboardViewModel.scheduleDraftAutoSave()
+        }
     }
 
     @ViewBuilder
     private func settingsDetail(for pane: SettingsPane) -> some View {
         switch pane {
-        case .general:
-            SettingsGeneralPaneView(hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose)
-        case .onDemandApps:
+        case .appBehavior:
+            SettingsGeneralPaneView(dashboardViewModel: dashboardViewModel)
+        case .repositorySync:
+            SettingsFeedSyncPaneView(dashboardViewModel: dashboardViewModel)
+        case .routing:
+            SettingsCustomConfigPaneView(
+                snapshot: dashboardViewModel.snapshot,
+                dashboardViewModel: dashboardViewModel
+            )
+        case .apps:
             SettingsOnDemandPaneView(
                 snapshot: dashboardViewModel.snapshot,
                 dashboardViewModel: dashboardViewModel,
-                settingsViewModel: settingsViewModel,
-                onDemandViewModel: onDemandViewModel
+                onDemandViewModel: onDemandViewModel,
+                presentationCoordinator: presentationCoordinator
             )
         case .services:
             SettingsServicesPaneView(
                 snapshot: dashboardViewModel.snapshot,
                 dashboardViewModel: dashboardViewModel,
                 multipassViewModel: multipassViewModel
-            )
-        case .customConfig:
-            SettingsCustomConfigPaneView(
-                snapshot: dashboardViewModel.snapshot,
-                dashboardViewModel: dashboardViewModel
             )
         }
     }

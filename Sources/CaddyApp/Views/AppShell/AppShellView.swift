@@ -4,18 +4,14 @@ struct AppShellView: View {
     @Environment(\.openURL) private var openURL
 
     @ObservedObject var viewModel: DashboardViewModel
-    @AppStorage(AppWindowController.hideOnClosePreferenceKey) private var hideWindowToMenuBarOnClose = false
+    @ObservedObject var presentationCoordinator: AppPresentationCoordinator
 
-    @State private var selectedTab: AppSidebarTab? = .dashboard
-    @State private var showCaddyUpdateConfirmation = false
-    @State private var showReloadConfigConfirmation = false
+    @State private var selectedTab: AppSidebarTab? = .overview
 
     var body: some View {
         VStack(spacing: 0) {
             AppHeaderView(
-                hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose,
                 isLoading: viewModel.isLoading,
-                onHideToMenuBar: { AppWindowController().hideAppToMenuBar() },
                 onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
                 onRefresh: viewModel.refresh
             )
@@ -44,30 +40,44 @@ struct AppShellView: View {
         .onChange(of: viewModel.enableTraefikMeAliases) { _, _ in
             viewModel.scheduleDraftAutoSave()
         }
+        .onChange(of: viewModel.hideWindowToMenuBarOnClose) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: viewModel.repositoryAutoUpdateEnabled) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
+        .onChange(of: viewModel.repositoryAutoUpdateIntervalHours) { _, _ in
+            viewModel.scheduleDraftAutoSave()
+        }
         .background(MainWindowDelegateInstaller())
         .confirmationDialog(
-            "Caddy aktualisieren?",
-            isPresented: $showCaddyUpdateConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Update via Homebrew") {
-                viewModel.updateCaddy()
+            dialogTitle,
+            isPresented: Binding(
+                get: { presentationCoordinator.activeDialog != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        presentationCoordinator.dismissDialog()
+                    }
+                }
+            ),
+            titleVisibility: .visible,
+            presenting: presentationCoordinator.activeDialog
+        ) { dialog in
+            switch dialog {
+            case .caddyUpdate:
+                Button("Update via Homebrew") {
+                    viewModel.updateCaddy()
+                }
+            case .reloadConfig:
+                Button("Schreiben und Reload ausführen") {
+                    viewModel.reloadCaddy()
+                }
             }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Die App nutzt Homebrew, wenn verfügbar. Ohne Homebrew (oder bei app-verwaltetem Caddy) wird ein direkter Download des aktuellen GitHub-Releases in den App-Bin-Pfad verwendet. Bei fehlgeschlagenem Homebrew-Upgrade wird eine Recovery via 'brew reinstall caddy' versucht.")
-        }
-        .confirmationDialog(
-            "Caddy-Konfiguration anwenden?",
-            isPresented: $showReloadConfigConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Schreiben und Reload ausführen") {
-                viewModel.reloadCaddy()
+            Button("Abbrechen", role: .cancel) {
+                presentationCoordinator.dismissDialog()
             }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Die aktuelle Vorschau wird zuerst als Caddyfile geschrieben, vor dem Reload validiert und bei einem Fehler automatisch auf die vorherige Datei zurückgesetzt.")
+        } message: { dialog in
+            Text(dialogMessage(dialog))
         }
     }
 
@@ -76,33 +86,51 @@ struct AppShellView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let snapshot = viewModel.snapshot {
-                    switch selectedTab ?? .dashboard {
-                    case .dashboard:
+                    switch selectedTab ?? .overview {
+                    case .overview:
                         DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                    case .caddyTLS:
+                    case .setupStatus:
                         SystemTabView(
                             snapshot: snapshot,
                             viewModel: viewModel,
-                            showCaddyUpdateConfirmation: $showCaddyUpdateConfirmation
+                            showCaddyUpdateConfirmation: Binding(
+                                get: { presentationCoordinator.activeDialog == .caddyUpdate },
+                                set: { isPresented in
+                                    isPresented
+                                        ? presentationCoordinator.present(.caddyUpdate)
+                                        : presentationCoordinator.dismissDialog()
+                                }
+                            )
                         )
-                    case .runtime:
-                        RuntimeTabView(snapshot: snapshot)
-                    case .config:
+                    case .routing:
                         ConfigTabView(
                             snapshot: snapshot,
                             viewModel: viewModel,
-                            showReloadConfigConfirmation: $showReloadConfigConfirmation
+                            showReloadConfigConfirmation: Binding(
+                                get: { presentationCoordinator.activeDialog == .reloadConfig },
+                                set: { isPresented in
+                                    isPresented
+                                        ? presentationCoordinator.present(.reloadConfig)
+                                        : presentationCoordinator.dismissDialog()
+                                }
+                            )
                         )
-                    case .logs:
-                        LogsTabView(viewModel: viewModel)
-                    case .features:
-                        FeaturesTabView(snapshot: snapshot)
+                    case .services:
+                        ServicesWorkspaceView(snapshot: snapshot, viewModel: viewModel)
+                    case .apps:
+                        AppsWorkspaceView(
+                            snapshot: snapshot,
+                            viewModel: viewModel,
+                            presentationCoordinator: presentationCoordinator
+                        )
+                    case .monitoring:
+                        MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
                     }
                 } else if viewModel.isLoading {
                     AppSkeletonView()
                         .padding(.top, 6)
-                } else if (selectedTab ?? .dashboard) == .logs {
-                    LogsTabView(viewModel: viewModel)
+                } else if (selectedTab ?? .overview) == .monitoring {
+                    MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
                 } else {
                     Text("No data loaded yet")
                         .foregroundStyle(.secondary)
@@ -112,5 +140,25 @@ struct AppShellView: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var dialogTitle: String {
+        switch presentationCoordinator.activeDialog {
+        case .caddyUpdate:
+            return "Caddy aktualisieren?"
+        case .reloadConfig:
+            return "Caddy-Konfiguration anwenden?"
+        case .none:
+            return ""
+        }
+    }
+
+    private func dialogMessage(_ dialog: AppPresentationCoordinator.Dialog) -> String {
+        switch dialog {
+        case .caddyUpdate:
+            return "Homebrew wird bevorzugt. Falls nötig, fällt die App auf das verwaltete Binary oder eine Recovery per 'brew reinstall caddy' zurück."
+        case .reloadConfig:
+            return "Die Vorschau wird geschrieben, validiert und bei Fehlern automatisch auf die letzte funktionierende Datei zurückgesetzt."
+        }
     }
 }

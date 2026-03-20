@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarStatusView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var viewModel: DashboardViewModel
+    @ObservedObject var presentationCoordinator: AppPresentationCoordinator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -10,15 +11,21 @@ struct MenuBarStatusView: View {
                 .font(.headline)
 
             if let snapshot = viewModel.snapshot {
-                Text(snapshot.caddyInstall.isInstalled ? "Caddy: installiert" : "Caddy: nicht installiert")
+                Text(snapshot.caddyRuntimeStatus.isRunning ? "Caddy läuft" : "Caddy gestoppt")
                     .font(.caption)
-                Text(snapshot.caddyRuntimeStatus.isRunning ? "Status: läuft" : "Status: gestoppt")
+                Text(snapshot.caddyInstall.isInstalled ? "Installation bereit" : "Caddy fehlt")
                     .font(.caption)
                     .foregroundStyle(snapshot.caddyRuntimeStatus.isRunning ? .green : .secondary)
-                Text("Routen: \(snapshot.configPreview.routeCount)")
+                Text(viewModel.repositorySyncStatusText)
                     .font(.caption)
-                if let latest = snapshot.latestRelease {
-                    Text("Latest: \(latest.tagName)")
+                    .foregroundStyle(.secondary)
+                if let warning = snapshot.warnings.first {
+                    Text(warning)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                } else if let latest = snapshot.latestRelease {
+                    Text("Release \(latest.tagName)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -33,9 +40,16 @@ struct MenuBarStatusView: View {
             Button("Dashboard öffnen") {
                 openWindow(id: AppWindowController.mainWindowID)
             }
+            Button("AppConfig öffnen") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
             Button("Aktualisieren") {
                 viewModel.refresh()
             }
+            Button("Feed Sync") {
+                viewModel.refreshAppRepositoryPresets()
+            }
+            .disabled(viewModel.isRefreshingAppRepositories)
             if let snapshot = viewModel.snapshot, snapshot.caddyInstall.isInstalled {
                 Button(snapshot.caddyRuntimeStatus.isRunning ? "Caddy stoppen" : "Caddy starten") {
                     viewModel.setCaddyRunning(!snapshot.caddyRuntimeStatus.isRunning)

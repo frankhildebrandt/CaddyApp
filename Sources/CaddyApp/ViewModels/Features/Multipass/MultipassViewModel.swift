@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class MultipassViewModel: ObservableObject {
+    @Published var assistant = MultipassServiceAssistantDraft()
+
     let integerFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .none
@@ -22,5 +24,21 @@ final class MultipassViewModel: ObservableObject {
         guard !label.isEmpty else { return nil }
         let truncated = String(label.prefix(63))
         return "\(truncated).mp.localhost"
+    }
+
+    func prepareAssistant(defaultVMName: String?, existingServices: [MultipassServiceDraft]) {
+        if let defaultVMName, assistant.vmName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            assistant.vmName = defaultVMName
+        }
+        if assistant.serviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let suggested = MultipassServiceDraft.defaultForVM(assistant.vmName, existingServices: existingServices)
+            assistant.serviceName = suggested.serviceName
+        }
+    }
+
+    func commitAssistant(existingServices: [MultipassServiceDraft]) -> MultipassServiceDraft {
+        let draft = assistant.makeService(existingServices: existingServices)
+        assistant = MultipassServiceAssistantDraft(vmName: assistant.vmName)
+        return draft
     }
 }

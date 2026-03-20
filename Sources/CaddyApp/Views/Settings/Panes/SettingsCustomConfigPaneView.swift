@@ -19,16 +19,11 @@ struct SettingsCustomConfigPaneView: View {
 
     private func customConfigSection(_ snapshot: DashboardSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Custom Routes") {
+            GroupBox("Routing") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Eigene Hosts werden mit den automatisch erkannten Runtime-Routen kombiniert.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Toggle("Traefik.me-Aliase fuer .localhost-Hosts aktivieren", isOn: $dashboardViewModel.enableTraefikMeAliases)
+                    Toggle("Traefik.me-Aliase für .localhost-Hosts aktivieren", isOn: $dashboardViewModel.enableTraefikMeAliases)
                         .toggleStyle(.checkbox)
-                    Text("Erzeugt pro Host zusaetzliche Aliase wie <host>.<ip>.traefik.me (nur fuer nicht-Wildcard .localhost-Hosts).")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .help("Erzeugt zusätzliche Aliase wie <host>.<ip>.traefik.me für nicht-Wildcard-.localhost-Hosts.")
 
                     if dashboardViewModel.customRoutes.isEmpty {
                         Text("Noch keine Custom Route angelegt.")
@@ -54,12 +49,8 @@ struct SettingsCustomConfigPaneView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("Zusätzliche Caddyfile-Config") {
+            GroupBox("Erweiterte Caddyfile-Config") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Optionaler Caddyfile-Block, der an die generierte Konfiguration angehängt wird.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $dashboardViewModel.customAdditionalCaddyfileConfig)
                             .font(.system(.body, design: .monospaced))
@@ -78,14 +69,10 @@ struct SettingsCustomConfigPaneView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("Custom Config speichern") {
+            GroupBox("Speicherstatus") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Custom Routes und On-Demand Apps werden automatisch gespeichert und direkt angewendet. Dieser Button ist nur für den zusätzlichen Caddyfile-Block.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
                     HStack(spacing: 10) {
-                        Button("Custom Config speichern") {
+                        Button("Erweiterte Config speichern") {
                             dashboardViewModel.saveAdditionalCaddyfileConfig()
                         }
                         .disabled(dashboardViewModel.isSavingCustomConfig || dashboardViewModel.isLoading || dashboardViewModel.isChangingCaddyRuntime)

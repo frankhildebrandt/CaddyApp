@@ -1,9 +1,7 @@
 import SwiftUI
 
 struct AppHeaderView: View {
-    @Binding var hideWindowToMenuBarOnClose: Bool
     let isLoading: Bool
-    let onHideToMenuBar: () -> Void
     let onOpenSettings: () -> Void
     let onRefresh: () -> Void
 
@@ -21,6 +19,11 @@ struct AppHeaderView: View {
                 }
             }
             Spacer()
+
+            Button(action: onOpenSettings) {
+                Label("AppConfig", systemImage: "slider.horizontal.3")
+            }
+            .buttonStyle(.bordered)
 
             Button(action: onRefresh) {
                 Label(isLoading ? "Lädt..." : "Aktualisieren", systemImage: "arrow.clockwise")

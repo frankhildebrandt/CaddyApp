@@ -9,32 +9,17 @@ struct OnDemandPresetPickerView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Wähle eine Vorlage oder lege eine Custom App an. Danach erscheint die App in der Übersichtsliste.")
+                    Text("Wähle eine Vorlage oder lege eine eigene App an. Feed-Quellen verwaltest du in AppConfig > Feed Sync.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    GroupBox("Repository-Quellen (YAML, Web)") {
+                    GroupBox("Repository-Presets") {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Trage hier Web-Repositories ein (`repositories.yaml` oder `apps/index.yaml`) und lade Presets per Web-Update.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            ForEach(Array(dashboardViewModel.appRepositories.indices), id: \.self) { index in
-                                appRepositoryRow(at: index)
-                            }
-
                             HStack(spacing: 8) {
-                                Button {
-                                    dashboardViewModel.addAppRepository()
-                                } label: {
-                                    Label("Repository hinzufügen", systemImage: "plus")
-                                }
-                                .buttonStyle(.bordered)
-
                                 Button {
                                     dashboardViewModel.refreshAppRepositoryPresets()
                                 } label: {
-                                    Label("Web-Repositories aktualisieren", systemImage: "arrow.clockwise")
+                                    Label("Jetzt synchronisieren", systemImage: "arrow.clockwise")
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(dashboardViewModel.isRefreshingAppRepositories)
@@ -110,12 +95,12 @@ struct OnDemandPresetPickerView: View {
                             }
                         }
                     } else {
-                        Text("Noch keine Repository-Presets geladen. Nutze 'Web-Repositories aktualisieren'.")
+                        Text("Noch keine Repository-Presets geladen. Nutze 'Jetzt synchronisieren'.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("Hinweis: Kimai und Ephe benötigen meist einen längeren ersten Start. Ephe wird aus dem Git-Repository im Container gebaut.")
+                    Text("Einige Presets benötigen beim ersten Start mehr Zeit. Details bleiben im jeweiligen App-Eintrag sichtbar.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -132,46 +117,10 @@ struct OnDemandPresetPickerView: View {
         }
         .onAppear {
             if !dashboardViewModel.isRefreshingAppRepositories, dashboardViewModel.remoteOnDemandPresets.isEmpty {
-                dashboardViewModel.refreshAppRepositoryPresets()
+                dashboardViewModel.refreshAppRepositoryPresets(trigger: .startup)
             }
         }
         .frame(minWidth: 760, minHeight: 520)
-    }
-
-    private func appRepositoryRow(at index: Int) -> some View {
-        let repositoryBinding = $dashboardViewModel.appRepositories[index]
-        let repositoryID = repositoryBinding.wrappedValue.id
-
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Toggle("", isOn: repositoryBinding.enabled)
-                    .labelsHidden()
-                    .toggleStyle(.checkbox)
-                TextField("Repository-Name", text: repositoryBinding.name)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 220)
-                TextField("Repository-URL", text: repositoryBinding.entryURL)
-                    .textFieldStyle(.roundedBorder)
-                Button {
-                    dashboardViewModel.moveAppRepositoryUp(id: repositoryID)
-                } label: {
-                    Image(systemName: "arrow.up")
-                }
-                .buttonStyle(.borderless)
-                Button {
-                    dashboardViewModel.moveAppRepositoryDown(id: repositoryID)
-                } label: {
-                    Image(systemName: "arrow.down")
-                }
-                .buttonStyle(.borderless)
-                Button(role: .destructive) {
-                    dashboardViewModel.removeAppRepository(id: repositoryID)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-            }
-        }
     }
 
     private func onDemandAddOptionTile(

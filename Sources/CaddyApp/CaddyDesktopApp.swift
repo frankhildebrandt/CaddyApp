@@ -4,7 +4,7 @@ import SwiftUI
 struct CaddyDesktopApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
     @StateObject private var viewModel = DashboardViewModel.bootstrap()
-    @AppStorage(AppWindowController.hideOnClosePreferenceKey) private var hideWindowToMenuBarOnClose = false
+    @StateObject private var presentationCoordinator = AppPresentationCoordinator()
 
     init() {
         Task {
@@ -15,22 +15,25 @@ struct CaddyDesktopApp: App {
 
     var body: some Scene {
         WindowGroup("CaddyApp", id: AppWindowController.mainWindowID) {
-            AppShellView(viewModel: viewModel)
+            AppShellView(
+                viewModel: viewModel,
+                presentationCoordinator: presentationCoordinator
+            )
                 .frame(minWidth: 1000, minHeight: 700)
         }
         .windowResizability(.contentSize)
 
         MenuBarExtra {
-            MenuBarStatusView(viewModel: viewModel)
+            MenuBarStatusView(
+                viewModel: viewModel,
+                presentationCoordinator: presentationCoordinator
+            )
         } label: {
             MenuBarSystrayIcon()
         }
 
         Settings {
-            AppSettingsView(
-                viewModel: viewModel,
-                hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
-            )
+            AppSettingsView(viewModel: viewModel, presentationCoordinator: presentationCoordinator)
         }
 
         .commands {

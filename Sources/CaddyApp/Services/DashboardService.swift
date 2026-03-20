@@ -3,7 +3,7 @@ import Foundation
 actor DashboardService {
     private let installService = CaddyInstallationService()
     private let configService = CaddyConfigService()
-    private let customConfigStore = CustomConfigStore()
+    private let appConfigStore = AppConfigStore()
     private let tlsService = LocalhostTLSService()
     private let runtimeService = RuntimeDiscoveryService()
     private let releaseService = CaddyReleaseMonitorService()
@@ -15,14 +15,14 @@ actor DashboardService {
         await onDemandAppsService.startIfNeeded()
         await onDemandAppsService.reloadConfiguration()
         let runtimeTargets = runtimeService.discoverTargets()
-        let customConfig = customConfigStore.load()
+        let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
-            customRoutes: customConfig.customRoutes,
-            onDemandApps: customConfig.onDemandApps,
-            multipassServices: customConfig.multipassServices
+            customRoutes: appConfig.customRoutes,
+            onDemandApps: appConfig.onDemandApps,
+            multipassServices: appConfig.multipassServices
         )
         var caddyInstall = installService.loadStatus()
         var tlsStatus = tlsService.status()
@@ -40,8 +40,8 @@ actor DashboardService {
         )
         let configPreview = configService.preview(
             for: routes,
-            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig,
-            enableTraefikMeAliases: customConfig.enableTraefikMeAliases
+            additionalCaddyfileConfig: appConfig.additionalCaddyfileConfig,
+            enableTraefikMeAliases: appConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
 
@@ -73,19 +73,19 @@ actor DashboardService {
     func refreshRuntimeDiscovery(on snapshot: DashboardSnapshot) async -> DashboardSnapshot {
         await onDemandAppsService.reloadConfiguration()
         let runtimeTargets = runtimeService.discoverTargets()
-        let customConfig = customConfigStore.load()
+        let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
-            customRoutes: customConfig.customRoutes,
-            onDemandApps: customConfig.onDemandApps,
-            multipassServices: customConfig.multipassServices
+            customRoutes: appConfig.customRoutes,
+            onDemandApps: appConfig.onDemandApps,
+            multipassServices: appConfig.multipassServices
         )
         let configPreview = configService.preview(
             for: routes,
-            additionalCaddyfileConfig: customConfig.additionalCaddyfileConfig,
-            enableTraefikMeAliases: customConfig.enableTraefikMeAliases
+            additionalCaddyfileConfig: appConfig.additionalCaddyfileConfig,
+            enableTraefikMeAliases: appConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
         let warnings = DashboardWarningsBuilder.build(

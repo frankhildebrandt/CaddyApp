@@ -1023,7 +1023,7 @@ actor OnDemandAppsService {
         return result.isSuccess
     }
 
-    private func syncMultipassConfigFromYAML(base: CustomConfigSettings) -> CustomConfigSettings? {
+    private func syncMultipassConfigFromYAML(base: AppConfig) -> AppConfig? {
         guard let listData = runner.runShell("multipass list --format json").stdout.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: listData) as? [String: Any],
               let list = json["list"] as? [[String: Any]] else {

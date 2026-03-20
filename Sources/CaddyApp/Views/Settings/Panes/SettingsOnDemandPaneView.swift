@@ -3,8 +3,8 @@ import SwiftUI
 struct SettingsOnDemandPaneView: View {
     let snapshot: DashboardSnapshot?
     @ObservedObject var dashboardViewModel: DashboardViewModel
-    @ObservedObject var settingsViewModel: SettingsViewModel
     @ObservedObject var onDemandViewModel: OnDemandViewModel
+    @ObservedObject var presentationCoordinator: AppPresentationCoordinator
 
     var body: some View {
         List {
@@ -17,11 +17,11 @@ struct SettingsOnDemandPaneView: View {
             }
         }
         .listStyle(.automatic)
-        .sheet(isPresented: $settingsViewModel.showOnDemandPresetPicker) {
+        .sheet(isPresented: $presentationCoordinator.isOnDemandPresetPickerPresented) {
             OnDemandPresetPickerView(
                 dashboardViewModel: dashboardViewModel,
                 onDemandViewModel: onDemandViewModel,
-                isPresented: $settingsViewModel.showOnDemandPresetPicker
+                isPresented: $presentationCoordinator.isOnDemandPresetPickerPresented
             )
         }
     }
@@ -33,9 +33,6 @@ struct SettingsOnDemandPaneView: View {
             GroupBox("On-Demand Apps") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .center, spacing: 10) {
-                        Text("Apps starten automatisch beim URL-Zugriff und stoppen nach Idle-Timeout.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                         Spacer()
                         if onDemandViewModel.selectedOnDemandAppID != nil {
                             Button {
@@ -49,13 +46,13 @@ struct SettingsOnDemandPaneView: View {
                         Button {
                             dashboardViewModel.refreshAppRepositoryPresets()
                         } label: {
-                            Label("Web-Update", systemImage: "arrow.clockwise")
+                            Label("Feed Sync", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(.bordered)
                         .disabled(dashboardViewModel.isRefreshingAppRepositories)
 
                         Button {
-                            settingsViewModel.showOnDemandPresetPicker = true
+                            presentationCoordinator.isOnDemandPresetPickerPresented = true
                         } label: {
                             Label("Hinzufügen", systemImage: "plus")
                         }
@@ -94,7 +91,7 @@ struct SettingsOnDemandPaneView: View {
                         }
                     }
 
-                    Text("Änderungen werden automatisch gespeichert und bei gültiger Konfiguration direkt auf Caddy angewendet.")
+                    Text("Änderungen werden automatisch gespeichert und bei gültiger Konfiguration direkt angewendet.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

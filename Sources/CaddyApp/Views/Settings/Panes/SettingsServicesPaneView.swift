@@ -32,6 +32,36 @@ struct SettingsServicesPaneView: View {
         let unassignedServiceIndices = servicesByVM["Unzugeordnet"] ?? []
 
         return VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Service-Assistent") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Lege VM-Services in wenigen Schritten an. Host und Standardwerte werden automatisch vorgeschlagen.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    assistantRow(vmNames: sortedVMNames)
+
+                    HStack(spacing: 10) {
+                        Button {
+                            multipassViewModel.prepareAssistant(
+                                defaultVMName: sortedVMNames.first,
+                                existingServices: dashboardViewModel.multipassServices
+                            )
+                            let draft = multipassViewModel.commitAssistant(existingServices: dashboardViewModel.multipassServices)
+                            dashboardViewModel.addMultipassService(draft)
+                        } label: {
+                            Label("Vorschlag übernehmen", systemImage: "wand.and.stars")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(multipassViewModel.assistant.vmName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Text(multipassViewModel.assistant.assistantHint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 4)
+            }
+
             GroupBox("Multipass VMs") {
                 VStack(alignment: .leading, spacing: 12) {
                     if sortedVMNames.isEmpty {
@@ -258,6 +288,67 @@ struct SettingsServicesPaneView: View {
             if serviceBinding.wrappedValue.vmName != vmName {
                 serviceBinding.wrappedValue.vmName = vmName
             }
+        }
+    }
+
+    private func assistantRow(vmNames: [String]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                Picker("VM", selection: $multipassViewModel.assistant.vmName) {
+                    Text("VM wählen").tag("")
+                    ForEach(vmNames, id: \.self) { vmName in
+                        Text(vmName).tag(vmName)
+                    }
+                }
+                .frame(maxWidth: 220)
+
+                TextField("Service", text: $multipassViewModel.assistant.serviceName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Port", value: $multipassViewModel.assistant.targetPort, formatter: multipassViewModel.integerFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                Picker("Scheme", selection: $multipassViewModel.assistant.scheme) {
+                    Text("http").tag(MultipassServiceScheme.http)
+                    Text("https").tag(MultipassServiceScheme.https)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                Text(multipassViewModel.assistant.suggestedHost)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("VM", selection: $multipassViewModel.assistant.vmName) {
+                    Text("VM wählen").tag("")
+                    ForEach(vmNames, id: \.self) { vmName in
+                        Text(vmName).tag(vmName)
+                    }
+                }
+                TextField("Service", text: $multipassViewModel.assistant.serviceName)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("Port", value: $multipassViewModel.assistant.targetPort, formatter: multipassViewModel.integerFormatter)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                    Picker("Scheme", selection: $multipassViewModel.assistant.scheme) {
+                        Text("http").tag(MultipassServiceScheme.http)
+                        Text("https").tag(MultipassServiceScheme.https)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 150)
+                }
+                Text(multipassViewModel.assistant.suggestedHost)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            multipassViewModel.prepareAssistant(
+                defaultVMName: vmNames.first,
+                existingServices: dashboardViewModel.multipassServices
+            )
         }
     }
 

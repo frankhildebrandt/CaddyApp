@@ -108,4 +108,65 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertEqual(OnDemandAppPresetIcon.forKey("authentik"), "person.badge.shield.checkmark")
         XCTAssertEqual(OnDemandAppPresetIcon.forKey("unknown"), "shippingbox")
     }
+
+    func testAppConfigMigratesLegacySettings() {
+        let legacy = CustomConfigSettings(
+            customRoutes: [CustomRouteDraft(host: "legacy.localhost", upstream: "127.0.0.1:9000")],
+            onDemandApps: [],
+            multipassServices: [],
+            appRepositories: AppRepositoryDraft.defaultList,
+            enableTraefikMeAliases: false,
+            additionalCaddyfileConfig: "respond \"ok\" 200"
+        )
+
+        let migrated = AppConfig(legacy: legacy)
+
+        XCTAssertEqual(migrated.customRoutes.count, 1)
+        XCTAssertFalse(migrated.enableTraefikMeAliases)
+        XCTAssertEqual(migrated.additionalCaddyfileConfig, "respond \"ok\" 200")
+        XCTAssertTrue(migrated.repositorySync.autoUpdateEnabled)
+    }
+
+    func testRepositorySyncSettingsClampInterval() {
+        let settings = AppRepositorySyncSettings(
+            autoUpdateEnabled: true,
+            autoUpdateIntervalHours: 99,
+            lastSuccessfulSyncAt: nil,
+            lastSyncError: "  failed  ",
+            lastLoadedPresetCount: 0,
+            lastLoadedRepositoryCount: 0
+        ).sanitized
+
+        XCTAssertEqual(settings.autoUpdateIntervalHours, 24)
+        XCTAssertEqual(settings.lastSyncError, "failed")
+    }
+
+    @MainActor
+    func testPresentationCoordinatorIgnoresDuplicateDialogRequest() {
+        let coordinator = AppPresentationCoordinator()
+
+        coordinator.present(.reloadConfig)
+        coordinator.present(.reloadConfig)
+
+        XCTAssertEqual(coordinator.activeDialog, .reloadConfig)
+        coordinator.dismissDialog()
+        XCTAssertNil(coordinator.activeDialog)
+    }
+
+    func testMultipassAssistantBuildsSuggestedService() {
+        let assistant = MultipassServiceAssistantDraft(
+            vmName: "Dev VM",
+            serviceName: "api",
+            targetPort: 9000,
+            scheme: .https
+        )
+
+        let draft = assistant.makeService(existingServices: [])
+
+        XCTAssertEqual(draft.vmName, "Dev VM")
+        XCTAssertEqual(draft.serviceName, "api")
+        XCTAssertEqual(draft.host, "api.dev-vm.mp.localhost")
+        XCTAssertEqual(draft.targetPort, 9000)
+        XCTAssertEqual(draft.scheme, .https)
+    }
 }

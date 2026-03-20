@@ -5,8 +5,10 @@ import Foundation
 final class DashboardViewModel: ObservableObject {
     private static let runtimePollIntervalNanoseconds: UInt64 = 8_000_000_000
     private static let draftAutoSaveDebounceNanoseconds: UInt64 = 700_000_000
+    private static let repositorySyncInitialDelayNanoseconds: UInt64 = 5_000_000_000
     private static let runtimePollingJobID = "dashboard.runtime-polling"
     private static let draftAutosaveJobID = "dashboard.draft-autosave"
+    private static let repositoryAutoSyncJobID = "dashboard.repository-auto-sync"
 
     @Published private(set) var snapshot: DashboardSnapshot?
     @Published private(set) var isLoading = false
@@ -39,12 +41,17 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var remoteOnDemandPresets: [OnDemandAppPreset] = []
     @Published private(set) var isRefreshingAppRepositories = false
     @Published private(set) var lastRepositorySyncResult: AppRepositorySyncResult?
+    @Published var hideWindowToMenuBarOnClose: Bool
+    @Published var repositoryAutoUpdateEnabled: Bool
+    @Published var repositoryAutoUpdateIntervalHours: Int
+    @Published private(set) var lastSuccessfulRepositorySyncAt: Date?
+    @Published private(set) var lastRepositorySyncError: String?
 
     private let dashboardService: DashboardService
     nonisolated private let configLifecycleService: CaddyConfigLifecycleService
     nonisolated private let tlsService: LocalhostTLSService
     nonisolated private let caddyInstallationService: CaddyInstallationService
-    private let customConfigStore: CustomConfigStore
+    private let appConfigStore: AppConfigStore
     private let onDemandAppsService: OnDemandAppsService
     private let appRepositoryService: AppRepositoryService
     nonisolated private let shellRunner = ShellCommandRunner()
@@ -59,24 +66,30 @@ final class DashboardViewModel: ObservableObject {
         configLifecycleService: CaddyConfigLifecycleService = CaddyConfigLifecycleService(),
         tlsService: LocalhostTLSService = LocalhostTLSService(),
         caddyInstallationService: CaddyInstallationService = CaddyInstallationService(),
-        customConfigStore: CustomConfigStore = CustomConfigStore(),
+        appConfigStore: AppConfigStore = AppConfigStore(),
         onDemandAppsService: OnDemandAppsService = .shared,
         appRepositoryService: AppRepositoryService = AppRepositoryService()
     ) {
-        let initialCustomConfig = customConfigStore.load()
+        let initialAppConfig = appConfigStore.load()
         self.dashboardService = dashboardService
         self.configLifecycleService = configLifecycleService
         self.tlsService = tlsService
         self.caddyInstallationService = caddyInstallationService
-        self.customConfigStore = customConfigStore
+        self.appConfigStore = appConfigStore
         self.onDemandAppsService = onDemandAppsService
         self.appRepositoryService = appRepositoryService
-        self.customRoutes = initialCustomConfig.customRoutes
-        self.onDemandApps = initialCustomConfig.onDemandApps
-        self.multipassServices = initialCustomConfig.multipassServices
-        self.appRepositories = initialCustomConfig.appRepositories
-        self.enableTraefikMeAliases = initialCustomConfig.enableTraefikMeAliases
-        self.customAdditionalCaddyfileConfig = initialCustomConfig.additionalCaddyfileConfig
+        self.customRoutes = initialAppConfig.customRoutes
+        self.onDemandApps = initialAppConfig.onDemandApps
+        self.multipassServices = initialAppConfig.multipassServices
+        self.appRepositories = initialAppConfig.appRepositories
+        self.enableTraefikMeAliases = initialAppConfig.enableTraefikMeAliases
+        self.customAdditionalCaddyfileConfig = initialAppConfig.additionalCaddyfileConfig
+        self.hideWindowToMenuBarOnClose = initialAppConfig.general.hideWindowToMenuBarOnClose
+        self.repositoryAutoUpdateEnabled = initialAppConfig.repositorySync.autoUpdateEnabled
+        self.repositoryAutoUpdateIntervalHours = initialAppConfig.repositorySync.autoUpdateIntervalHours
+        self.lastSuccessfulRepositorySyncAt = initialAppConfig.repositorySync.lastSuccessfulSyncAt
+        self.lastRepositorySyncError = initialAppConfig.repositorySync.lastSyncError
+        UserDefaults.standard.set(initialAppConfig.general.hideWindowToMenuBarOnClose, forKey: AppWindowController.hideOnClosePreferenceKey)
     }
 
     static func bootstrap() -> DashboardViewModel {
@@ -114,8 +127,9 @@ final class DashboardViewModel: ObservableObject {
             self.isLoading = false
             self.hasLoaded = true
             self.startRuntimePollingIfNeeded()
+            self.startRepositoryAutoSyncIfNeeded()
             if !self.hasLoadedRepositoryPresets {
-                self.refreshAppRepositoryPresets()
+                self.refreshAppRepositoryPresets(trigger: .startup)
             }
             await self.runAutomaticCaddyActionsIfNeeded(
                 previousSnapshot: previousSnapshot,
@@ -232,6 +246,10 @@ final class DashboardViewModel: ObservableObject {
         )
     }
 
+    func addMultipassService(_ draft: MultipassServiceDraft) {
+        multipassServices.append(draft.normalized())
+    }
+
     func addMultipassService(forVMName vmName: String) {
         let defaultService = MultipassServiceDraft.defaultForVM(vmName, existingServices: multipassServices)
         if defaultService.vmName.isEmpty {
@@ -269,7 +287,13 @@ final class DashboardViewModel: ObservableObject {
         appRepositories.swapAt(index, index + 1)
     }
 
-    func refreshAppRepositoryPresets() {
+    enum RepositorySyncTrigger: Equatable {
+        case manual
+        case startup
+        case automatic
+    }
+
+    func refreshAppRepositoryPresets(trigger: RepositorySyncTrigger = .manual) {
         guard !isRefreshingAppRepositories else { return }
         isRefreshingAppRepositories = true
         Task { [weak self] in
@@ -279,6 +303,7 @@ final class DashboardViewModel: ObservableObject {
             self.lastRepositorySyncResult = sync.result
             self.isRefreshingAppRepositories = false
             self.hasLoadedRepositoryPresets = true
+            self.applyRepositorySyncResult(sync.result, trigger: trigger)
         }
     }
 
@@ -298,7 +323,7 @@ final class DashboardViewModel: ObservableObject {
 
     func saveAdditionalCaddyfileConfig() {
         guard !isSavingCustomConfig else { return }
-        let existingSettings = customConfigStore.load()
+        let existingConfig = appConfigStore.load()
         let additionalConfig = customAdditionalCaddyfileConfig
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -306,15 +331,16 @@ final class DashboardViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let settings = CustomConfigSettings(
-                    customRoutes: existingSettings.customRoutes,
-                    onDemandApps: existingSettings.onDemandApps,
-                    multipassServices: existingSettings.multipassServices,
-                    appRepositories: appRepositories,
+                var config = existingConfig
+                config.routing = AppRoutingSettings(
                     enableTraefikMeAliases: enableTraefikMeAliases,
                     additionalCaddyfileConfig: additionalConfig
                 )
-                try self.customConfigStore.save(settings)
+                config.appRepositories = appRepositories
+                config.general.hideWindowToMenuBarOnClose = hideWindowToMenuBarOnClose
+                config.repositorySync.autoUpdateEnabled = repositoryAutoUpdateEnabled
+                config.repositorySync.autoUpdateIntervalHours = repositoryAutoUpdateIntervalHours
+                try self.appConfigStore.save(config)
                 self.customAdditionalCaddyfileConfig = additionalConfig
                 self.customConfigValidationError = nil
                 self.lastCustomConfigSaveResult = CustomConfigSaveResult(
@@ -337,7 +363,7 @@ final class DashboardViewModel: ObservableObject {
 
     private func saveRouteAndOnDemandDraftsIfNeeded() async {
         guard !isSavingCustomConfig else { return }
-        let existingSettings = customConfigStore.load()
+        let existingConfig = appConfigStore.load()
         let normalizedBundle = CustomConfigDraftBundle(
             routes: customRoutes,
             onDemandApps: onDemandApps,
@@ -388,11 +414,14 @@ final class DashboardViewModel: ObservableObject {
             return
         }
 
-        if normalizedRoutes == existingSettings.customRoutes,
-           normalizedOnDemandApps == existingSettings.onDemandApps,
-           normalizedMultipassServices == existingSettings.multipassServices,
-           normalizedRepositories == existingSettings.appRepositories,
-           enableTraefikMeAliases == existingSettings.enableTraefikMeAliases
+        if normalizedRoutes == existingConfig.customRoutes,
+           normalizedOnDemandApps == existingConfig.onDemandApps,
+           normalizedMultipassServices == existingConfig.multipassServices,
+           normalizedRepositories == existingConfig.appRepositories,
+           enableTraefikMeAliases == existingConfig.enableTraefikMeAliases,
+           hideWindowToMenuBarOnClose == existingConfig.general.hideWindowToMenuBarOnClose,
+           repositoryAutoUpdateEnabled == existingConfig.repositorySync.autoUpdateEnabled,
+           repositoryAutoUpdateIntervalHours == existingConfig.repositorySync.autoUpdateIntervalHours
         {
             return
         }
@@ -403,20 +432,25 @@ final class DashboardViewModel: ObservableObject {
         appRepositories = normalizedRepositories
         customConfigValidationError = nil
         isSavingCustomConfig = true
-        let removedOnDemandApps = existingSettings.onDemandApps.filter { previous in
+        UserDefaults.standard.set(hideWindowToMenuBarOnClose, forKey: AppWindowController.hideOnClosePreferenceKey)
+        let removedOnDemandApps = existingConfig.onDemandApps.filter { previous in
             !normalizedOnDemandApps.contains(where: { $0.id == previous.id })
         }
-        let settings = CustomConfigSettings(
-            customRoutes: normalizedRoutes,
-            onDemandApps: normalizedOnDemandApps,
-            multipassServices: normalizedMultipassServices,
-            appRepositories: normalizedRepositories,
+        var config = existingConfig
+        config.customRoutes = normalizedRoutes
+        config.onDemandApps = normalizedOnDemandApps
+        config.multipassServices = normalizedMultipassServices
+        config.appRepositories = normalizedRepositories
+        config.routing = AppRoutingSettings(
             enableTraefikMeAliases: enableTraefikMeAliases,
             additionalCaddyfileConfig: customAdditionalCaddyfileConfig
         )
+        config.general.hideWindowToMenuBarOnClose = hideWindowToMenuBarOnClose
+        config.repositorySync.autoUpdateEnabled = repositoryAutoUpdateEnabled
+        config.repositorySync.autoUpdateIntervalHours = repositoryAutoUpdateIntervalHours
 
         do {
-            try customConfigStore.save(settings)
+            try appConfigStore.save(config)
             let cleanupResults = await onDemandAppsService.deleteRuntimeUnits(for: removedOnDemandApps)
             let cleanupFailures = cleanupResults.filter { !$0.succeeded }
             let cleanupSummary: String
@@ -623,6 +657,63 @@ final class DashboardViewModel: ObservableObject {
         self.snapshot = snapshot
         self.hasLoaded = true
         self.startRuntimePollingIfNeeded()
+    }
+
+    var repositorySyncStatusText: String {
+        if isRefreshingAppRepositories {
+            return "Feed-Sync läuft"
+        }
+        if let lastRepositorySyncError, !lastRepositorySyncError.isEmpty {
+            return "Feed-Sync fehlerhaft"
+        }
+        if let lastSuccessfulRepositorySyncAt {
+            return "Letzter Sync \(lastSuccessfulRepositorySyncAt.formatted(date: .abbreviated, time: .shortened))"
+        }
+        return repositoryAutoUpdateEnabled ? "Auto-Sync aktiv" : "Auto-Sync aus"
+    }
+
+    private func startRepositoryAutoSyncIfNeeded() {
+        Task { [weak self] in
+            guard let self else { return }
+            if !repositoryAutoUpdateEnabled {
+                await scheduler.cancel(id: Self.repositoryAutoSyncJobID)
+                return
+            }
+            let interval = UInt64(max(repositoryAutoUpdateIntervalHours, 1)) * 3_600_000_000_000
+            await scheduler.scheduleRepeating(
+                id: Self.repositoryAutoSyncJobID,
+                intervalNanoseconds: interval,
+                initialDelayNanoseconds: Self.repositorySyncInitialDelayNanoseconds,
+                policy: .replace
+            ) { [weak self] in
+                await MainActor.run {
+                    self?.refreshAppRepositoryPresets(trigger: .automatic)
+                }
+            }
+        }
+    }
+
+    private func applyRepositorySyncResult(_ result: AppRepositorySyncResult, trigger: RepositorySyncTrigger) {
+        let existingConfig = appConfigStore.load()
+        var config = existingConfig
+        if result.succeeded {
+            lastSuccessfulRepositorySyncAt = result.performedAt
+            lastRepositorySyncError = nil
+            config.repositorySync.lastSuccessfulSyncAt = result.performedAt
+            config.repositorySync.lastSyncError = nil
+        } else {
+            let message = result.warnings.first ?? result.message
+            lastRepositorySyncError = message
+            config.repositorySync.lastSyncError = message
+        }
+        config.repositorySync.lastLoadedPresetCount = result.loadedPresetCount
+        config.repositorySync.lastLoadedRepositoryCount = result.loadedRepositoryCount
+        config.repositorySync.autoUpdateEnabled = repositoryAutoUpdateEnabled
+        config.repositorySync.autoUpdateIntervalHours = repositoryAutoUpdateIntervalHours
+        try? appConfigStore.save(config)
+        if trigger != .manual {
+            startRepositoryAutoSyncIfNeeded()
+        }
     }
 
     private func performConfigOperation(kind: ConfigOperationKind) {

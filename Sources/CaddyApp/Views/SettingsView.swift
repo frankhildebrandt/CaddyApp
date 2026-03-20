@@ -2,12 +2,12 @@ import SwiftUI
 
 struct AppSettingsView: View {
     @ObservedObject var viewModel: DashboardViewModel
-    @Binding var hideWindowToMenuBarOnClose: Bool
+    @ObservedObject var presentationCoordinator: AppPresentationCoordinator
 
     var body: some View {
         SettingsRootView(
             dashboardViewModel: viewModel,
-            hideWindowToMenuBarOnClose: $hideWindowToMenuBarOnClose
+            presentationCoordinator: presentationCoordinator
         )
         .frame(minWidth: 980, minHeight: 700)
     }

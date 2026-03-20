@@ -13,9 +13,10 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 
 ## Funktionsumfang
 
-- SwiftUI-Dashboard mit Menubar/Systray-Integration
+- SwiftUI-App mit task-orientierter Hauptnavigation und Menubar/Systray-Integration
 - App-Settings via macOS-Standard `Apple-,` sowie globales App-Menue (`CaddyApp`)
-- Konfigurationsverwaltung (On-Demand Apps, Services, Custom Config) zentral in den CaddyApp Settings
+- Konfigurationsverwaltung als zentrale `AppConfig` in den CaddyApp Settings
+- Automatischer GH-Pages-Feed-Sync fuer On-Demand-Presets
 - Caddy-Erkennung inkl. Install-/Update-Flow
   - Homebrew zuerst
   - Fallback auf app-verwaltetes Binary unter
@@ -79,7 +80,7 @@ Build-Artefakte:
 ## Projektstruktur
 
 - `Sources/CaddyApp/Views/AppShell/` - Hauptfenster-Shell (Header, Sidebar, Main-Layout)
-- `Sources/CaddyApp/Views/Tabs/` - Dashboard-Tabs (Dashboard/System/Runtime/Config/Logs/Features)
+- `Sources/CaddyApp/Views/Tabs/` - task-orientierte Arbeitsbereiche (Uebersicht/Setup/Routing/Services/Apps/Monitoring)
 - `Sources/CaddyApp/Views/Settings/` - Settings-Root + Pane-Views
 - `Sources/CaddyApp/Views/OnDemand/` - On-Demand-Feature-Komponenten
 - `Sources/CaddyApp/Views/Shared/` - Wiederverwendbare UI-Bausteine
@@ -152,3 +153,4 @@ file CaddyApp.app/Contents/MacOS/CaddyApp
 - Business-Logik (Validierung, Normalisierung, Mapping/Factory-Regeln) liegt in `Models/**`.
 - `ViewModels` halten UI-Zustand und orchestrieren Services.
 - `Services` kapseln IO/Systemintegration (Shell, Netzwerk, Filesystem) und vermeiden fachliche Duplikation.
+- Persistierte Einstellungen laufen ueber `AppConfig`; Legacy-`CustomConfigSettings` werden beim Laden migriert.

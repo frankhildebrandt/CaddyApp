@@ -1,61 +1,64 @@
 import Foundation
 
 enum AppSidebarTab: String, CaseIterable, Identifiable {
-    case dashboard
-    case caddyTLS = "caddy_tls"
-    case runtime
-    case config
-    case logs
-    case features
+    case overview
+    case setupStatus = "setup_status"
+    case routing
+    case services
+    case apps
+    case monitoring
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .dashboard: return "Dashboard"
-        case .caddyTLS: return "Caddy & TLS"
-        case .runtime: return "Runtime"
-        case .config: return "Config"
-        case .logs: return "Logging"
-        case .features: return "Features"
+        case .overview: return "Übersicht"
+        case .setupStatus: return "Setup & Status"
+        case .routing: return "Routing"
+        case .services: return "Services"
+        case .apps: return "Apps"
+        case .monitoring: return "Monitoring"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .dashboard: return "rectangle.grid.2x2"
-        case .caddyTLS: return "lock.shield"
-        case .runtime: return "server.rack"
-        case .config: return "doc.text"
-        case .logs: return "terminal"
-        case .features: return "list.bullet.clipboard"
+        case .overview: return "sparkles.rectangle.stack"
+        case .setupStatus: return "checkmark.shield"
+        case .routing: return "arrow.triangle.branch"
+        case .services: return "shippingbox"
+        case .apps: return "bolt.badge.clock"
+        case .monitoring: return "waveform.path.ecg"
         }
     }
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general
-    case onDemandApps = "on_demand_apps"
+    case appBehavior = "app_behavior"
+    case repositorySync = "repository_sync"
+    case routing
+    case apps
     case services
-    case customConfig = "custom_config"
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .general: return "Allgemein"
-        case .onDemandApps: return "On-Demand Apps"
+        case .appBehavior: return "App-Verhalten"
+        case .repositorySync: return "Feed Sync"
+        case .routing: return "Routing"
+        case .apps: return "Apps"
         case .services: return "Services"
-        case .customConfig: return "Custom Config"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .general: return "gearshape"
-        case .onDemandApps: return "bolt.badge.clock"
+        case .appBehavior: return "gearshape"
+        case .repositorySync: return "arrow.trianglehead.2.clockwise"
+        case .routing: return "arrow.triangle.branch"
+        case .apps: return "bolt.badge.clock"
         case .services: return "shippingbox"
-        case .customConfig: return "slider.horizontal.3"
         }
     }
 }

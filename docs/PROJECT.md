@@ -20,16 +20,20 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Loading UX standardized with skeleton placeholders and inline skeleton activity states.
 - Global app menu plus native macOS settings window (`Apple-,`) added.
 - Main window now uses `AppShellView` with dedicated shell components (`AppHeaderView`, `AppSidebarView`) and per-feature detail views.
-- Settings are decoupled into `SettingsRootView` with pane views (`General`, `On-Demand`, `Services`, `Custom Config`) instead of `ContentView` extensions.
+- Settings are decoupled into `SettingsRootView` and organized as `AppConfig` sections (`App Behavior`, `Feed Sync`, `Routing`, `Apps`, `Services`).
 - On-Demand, Multipass, and Settings feature state is segmented into feature view models under `ViewModels/Features/*`.
 - Domain layer refactor: model types are split into one-type-per-file under `Models/**`; validation/normalization/routing rules now live in models instead of view models.
+- Persisted configuration is consolidated in `AppConfig` with migration from legacy `CustomConfigSettings`.
+- GitHub Pages repositories support automatic preset synchronization based on persisted feed-sync settings.
+- Dialog presentation is coordinated centrally to avoid duplicate confirmation prompts.
+- Main navigation follows user tasks (`Overview`, `Setup & Status`, `Routing`, `Services`, `Apps`, `Monitoring`).
 
 ## Repository Structure
 
 - `Sources/CaddyApp/`
 - `Sources/CaddyApp/Views/`: SwiftUI views
 - `Sources/CaddyApp/Views/AppShell/`: shell layout and window/menu entry views
-- `Sources/CaddyApp/Views/Tabs/`: main dashboard tab views
+- `Sources/CaddyApp/Views/Tabs/`: task-oriented workspaces for user flows
 - `Sources/CaddyApp/Views/Settings/`: settings root and pane views
 - `Sources/CaddyApp/Views/OnDemand/`: on-demand feature subviews
 - `Sources/CaddyApp/Views/Shared/`: reusable view components
@@ -107,7 +111,7 @@ GitHub Actions workflow:
 Behavior:
 - deploys `docs/` to GitHub Pages on push to `main` when repository feed files change
 - allows manual deployment via `workflow_dispatch`
-- app-side repository URLs can be managed in the On-Demand preset picker and refreshed from web
+- app-side repository URLs live in `AppConfig > Feed Sync` and can be refreshed manually or automatically
 
 ## Recommended Branch Naming
 
