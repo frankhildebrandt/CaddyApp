@@ -11,6 +11,8 @@ struct AppHeaderView: View {
 
     var body: some View {
         HStack(spacing: 18) {
+            Spacer(minLength: 0)
+
             statusPill(
                 title: "Runtime",
                 value: runtimeStatusText,
@@ -34,7 +36,7 @@ struct AppHeaderView: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .frame(maxWidth: 320, minHeight: 52)
+            .frame(width: 260, height: 52)
 
             Button(action: onOpenSettings) {
                 Image(systemName: "slider.horizontal.3")
@@ -60,8 +62,10 @@ struct AppHeaderView: View {
                     .fill(AppChrome.accent)
             )
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 22)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, 8)
+        .padding(.top, 6)
+        .padding(.bottom, 18)
     }
 
     private func statusPill(title: String, value: String, systemImage: String) -> some View {

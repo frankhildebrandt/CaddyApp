@@ -34,11 +34,18 @@ struct AppShellView: View {
                     )
 
                     detailContent
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 18)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                .fill(Color.white.opacity(0.52))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
+                                )
+                        )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .appGlassCard(cornerRadius: 34, fill: AppChrome.panelFill)
+                .padding(.vertical, 8)
             }
             .padding(20)
         }
@@ -108,7 +115,8 @@ struct AppShellView: View {
             case .overview:
                 ScrollView {
                     DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                        .padding(18)
+                        .frame(maxWidth: 1060, alignment: .leading)
+                        .padding(26)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .setupStatus:
@@ -125,7 +133,8 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .padding(18)
+                    .frame(maxWidth: 1060, alignment: .leading)
+                    .padding(26)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .routing:
@@ -142,7 +151,8 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .padding(18)
+                    .frame(maxWidth: 1060, alignment: .leading)
+                    .padding(26)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .services:
