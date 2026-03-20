@@ -5,102 +5,137 @@ struct DashboardTabView: View {
     let openURLAction: OpenURLAction
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Dashboard") {
-                VStack(alignment: .leading, spacing: 14) {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
-                        statusCard(
-                            title: "Läuft Caddy?",
-                            isPositive: snapshot.caddyRuntimeStatus.isRunning,
-                            detail: snapshot.caddyRuntimeStatus.adminEndpoint,
-                            color: snapshot.caddyRuntimeStatus.isRunning ? .green : .orange
-                        )
+        VStack(alignment: .leading, spacing: 24) {
+            heroSection
 
-                        statusCard(
-                            title: "Ist das Cert gültig?",
-                            isPositive: isCertificateValid,
-                            detail: snapshot.tlsStatus.systemKeychainTrustStatus.label,
-                            color: isCertificateValid ? .green : .orange
-                        )
-                    }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
+                statusCard(
+                    title: "Caddy Runtime",
+                    isPositive: snapshot.caddyRuntimeStatus.isRunning,
+                    detail: snapshot.caddyRuntimeStatus.adminEndpoint,
+                    color: snapshot.caddyRuntimeStatus.isRunning ? .green : .orange
+                )
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
-                        metricCard(
-                            title: "Caddy",
-                            value: snapshot.caddyInstall.isInstalled ? "Installiert" : "Nicht installiert",
-                            tone: snapshot.caddyInstall.isInstalled ? .green : .orange
-                        )
-                        metricCard(
-                            title: "Version",
-                            value: snapshot.caddyInstall.version ?? "unknown",
-                            isMonospaced: true
-                        )
-                        metricCard(title: "Routen", value: "\(snapshot.configPreview.routeCount)")
-                        metricCard(title: "Targets", value: "\(snapshot.runtimeTargets.count)")
-                    }
+                statusCard(
+                    title: "TLS Vertrauen",
+                    isPositive: isCertificateValid,
+                    detail: snapshot.tlsStatus.systemKeychainTrustStatus.label,
+                    color: isCertificateValid ? .green : .orange
+                )
 
-                    quickAccessSection
+                metricCard(
+                    title: "Install Status",
+                    value: snapshot.caddyInstall.isInstalled ? "Installiert" : "Fehlt",
+                    tone: snapshot.caddyInstall.isInstalled ? .green : .orange
+                )
 
-                    HStack {
-                        Text("Snapshot")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(snapshot.generatedAt.formatted(date: .abbreviated, time: .standard))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 4)
+                metricCard(
+                    title: "Version",
+                    value: snapshot.caddyInstall.version ?? "unknown",
+                    isMonospaced: true
+                )
             }
 
             if !snapshot.warnings.isEmpty {
-                GroupBox("Warnings") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(snapshot.warnings.enumerated()), id: \.offset) { _, warning in
-                            Text("• \(warning)")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .padding(.top, 4)
-                }
+                warningSection
             }
 
             if snapshot.autoSetupReport.attempted {
-                GroupBox("Automatic Setup") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(snapshot.autoSetupReport.operations) { operation in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(operation.kind.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
-                                        .font(.headline)
-                                    Spacer()
-                                    Text(operation.succeeded ? "Success" : "Failed")
-                                        .font(.caption.bold())
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background((operation.succeeded ? Color.green : Color.red).opacity(0.16))
-                                        .foregroundStyle(operation.succeeded ? .green : .red)
-                                        .clipShape(Capsule())
-                                }
-                                Text(operation.message)
-                                if !operation.output.isEmpty {
-                                    Text(operation.output)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                }
-                                Text(operation.performedAt.formatted(date: .abbreviated, time: .standard))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Divider()
-                        }
-                    }
-                    .padding(.top, 4)
+                setupSection
+            }
+
+            quickAccessSection
+        }
+    }
+
+    private var heroSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Starte deine lokale Plattform")
+                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .foregroundStyle(AppChrome.primaryText)
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.84))
+                .frame(height: 62)
+                .overlay(alignment: .leading) {
+                    Text("Domains, Services oder Logs direkt im Blick behalten…")
+                        .font(.system(size: 24, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppChrome.secondaryText)
+                        .padding(.horizontal, 22)
                 }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
+                actionCard(title: "Routing prüfen", icon: "arrow.triangle.branch", summary: "\(snapshot.configPreview.routeCount) aktive Routen")
+                actionCard(title: "Services öffnen", icon: "shippingbox", summary: "\(snapshot.runtimeTargets.count) erkannte Targets")
+                actionCard(title: "TLS Status", icon: "lock.shield", summary: snapshot.tlsStatus.systemKeychainTrustStatus.label)
+                actionCard(title: "Logs & Monitoring", icon: "waveform.path.ecg", summary: snapshot.generatedAt.formatted(date: .omitted, time: .shortened))
             }
         }
+        .padding(24)
+        .appGlassCard(cornerRadius: 30)
+    }
+
+    private var warningSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Hinweise")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(AppChrome.primaryText)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(snapshot.warnings.enumerated()), id: \.offset) { _, warning in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(Color.orange.opacity(0.85))
+                            .frame(width: 8, height: 8)
+                            .padding(.top, 6)
+                        Text(warning)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .padding(22)
+        }
+        .appGlassCard(cornerRadius: 26)
+    }
+
+    private var setupSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Letzte automatische Aktionen")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(AppChrome.primaryText)
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(snapshot.autoSetupReport.operations) { operation in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(operation.kind.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(.headline)
+                            Spacer()
+                            Text(operation.succeeded ? "Success" : "Failed")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background((operation.succeeded ? Color.green : Color.red).opacity(0.16))
+                                .foregroundStyle(operation.succeeded ? .green : .red)
+                                .clipShape(Capsule())
+                        }
+                        Text(operation.message)
+                        if !operation.output.isEmpty {
+                            Text(operation.output)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        Text(operation.performedAt.formatted(date: .abbreviated, time: .standard))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Divider()
+                }
+            }
+            .padding(22)
+        }
+        .appGlassCard(cornerRadius: 26)
     }
 
     private var isCertificateValid: Bool {
@@ -117,8 +152,9 @@ struct DashboardTabView: View {
 
         if !multipassTargets.isEmpty || !podTargets.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Quick Access")
-                    .font(.headline)
+                Text("Schnellzugriff")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppChrome.primaryText)
 
                 if !multipassTargets.isEmpty {
                     runtimeCardGroup(
@@ -136,6 +172,8 @@ struct DashboardTabView: View {
                     )
                 }
             }
+            .padding(22)
+            .appGlassCard(cornerRadius: 26)
         }
     }
 
@@ -156,10 +194,7 @@ struct DashboardTabView: View {
             }
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .appGlassCard(cornerRadius: 22, fill: Color.white.opacity(0.55))
     }
 
     private func runtimeLinkCard(_ target: RuntimeTarget) -> some View {
@@ -211,14 +246,7 @@ struct DashboardTabView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.55))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+            .appGlassCard(cornerRadius: 18, fill: AppChrome.tileFill)
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -251,12 +279,12 @@ struct DashboardTabView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(color.opacity(0.08))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.72))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(color.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(color.opacity(0.18), lineWidth: 1.2)
         )
     }
 
@@ -278,54 +306,40 @@ struct DashboardTabView: View {
                 .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.72))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(tone.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tone.opacity(0.16), lineWidth: 1)
         )
     }
 
-    private func multipassAutoHost(for name: String) -> String? {
-        let lowered = name.lowercased()
-        let mapped = lowered.map { character -> Character in
-            if character.isLetter || character.isNumber || character == "-" {
-                return character
-            }
-            return "-"
+    private func actionCard(title: String, icon: String, summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(AppChrome.primaryText)
+            Text(title)
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(AppChrome.primaryText)
+            Text(summary)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppChrome.secondaryText)
+            Spacer(minLength: 0)
         }
-        let label = String(mapped)
-            .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        guard !label.isEmpty else { return nil }
-        let truncated = String(label.prefix(63))
-        return "\(truncated).mp.localhost"
+        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+        .padding(18)
+        .appGlassCard(cornerRadius: 24, fill: Color.white.opacity(0.68))
     }
 
     private func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {
-        switch target.source {
-        case .multipass:
-            guard let host = multipassAutoHost(for: target.name) else { return nil }
-            return URL(string: "https://\(host)")
-        case .podman:
-            if target.address.hasPrefix("http://") || target.address.hasPrefix("https://") {
-                return URL(string: target.address)
-            }
-
-            let port = target.address.split(separator: ":").last.flatMap { Int($0) }
-            let scheme = (port == 443 || port == 8443) ? "https" : "http"
-            return URL(string: "\(scheme)://\(target.address)")
-        case .manual:
-            return nil
-        case .onDemand:
-            return nil
-        case .multipassService:
-            return nil
-        }
+        let address = target.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else { return nil }
+        let scheme = target.source == .multipass ? "http" : "http"
+        return URL(string: "\(scheme)://\(address)")
     }
 
     private func runtimeDashboardURLDisplayString(for target: RuntimeTarget) -> String? {

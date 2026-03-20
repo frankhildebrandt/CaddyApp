@@ -9,18 +9,38 @@ struct AppShellView: View {
     @State private var selectedTab: AppSidebarTab? = .overview
 
     var body: some View {
-        VStack(spacing: 0) {
-            AppHeaderView(
-                isLoading: viewModel.isLoading,
-                onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
-                onRefresh: viewModel.refresh
+        ZStack {
+            LinearGradient(
+                colors: [AppChrome.canvasTop, AppChrome.canvasBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
-            Divider()
-            NavigationSplitView {
-                AppSidebarView(selectedTab: $selectedTab)
-            } detail: {
-                detailContent
+            .ignoresSafeArea()
+
+            HStack(spacing: 22) {
+                AppSidebarView(
+                    selectedTab: $selectedTab,
+                    onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
+                )
+                .frame(width: 286)
+
+                VStack(spacing: 0) {
+                    AppHeaderView(
+                        isLoading: viewModel.isLoading,
+                        runtimeStatusText: runtimeStatusText,
+                        syncStatusText: viewModel.repositorySyncStatusText,
+                        onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
+                        onRefresh: viewModel.refresh
+                    )
+
+                    detailContent
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 18)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .appGlassCard(cornerRadius: 34, fill: AppChrome.panelFill)
             }
+            .padding(20)
         }
         .onAppear {
             viewModel.refreshIfNeeded()
@@ -87,48 +107,42 @@ struct AppShellView: View {
             switch selectedTab ?? .overview {
             case .overview:
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                    }
-                    .padding(20)
+                    DashboardTabView(snapshot: snapshot, openURLAction: openURL)
+                        .padding(18)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .setupStatus:
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        SystemTabView(
-                            snapshot: snapshot,
-                            viewModel: viewModel,
-                            showCaddyUpdateConfirmation: Binding(
-                                get: { presentationCoordinator.activeDialog == .caddyUpdate },
-                                set: { isPresented in
-                                    isPresented
-                                        ? presentationCoordinator.present(.caddyUpdate)
-                                        : presentationCoordinator.dismissDialog()
-                                }
-                            )
+                    SystemTabView(
+                        snapshot: snapshot,
+                        viewModel: viewModel,
+                        showCaddyUpdateConfirmation: Binding(
+                            get: { presentationCoordinator.activeDialog == .caddyUpdate },
+                            set: { isPresented in
+                                isPresented
+                                    ? presentationCoordinator.present(.caddyUpdate)
+                                    : presentationCoordinator.dismissDialog()
+                            }
                         )
-                    }
-                    .padding(20)
+                    )
+                    .padding(18)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .routing:
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ConfigTabView(
-                            snapshot: snapshot,
-                            viewModel: viewModel,
-                            showReloadConfigConfirmation: Binding(
-                                get: { presentationCoordinator.activeDialog == .reloadConfig },
-                                set: { isPresented in
-                                    isPresented
-                                        ? presentationCoordinator.present(.reloadConfig)
-                                        : presentationCoordinator.dismissDialog()
-                                }
-                            )
+                    ConfigTabView(
+                        snapshot: snapshot,
+                        viewModel: viewModel,
+                        showReloadConfigConfirmation: Binding(
+                            get: { presentationCoordinator.activeDialog == .reloadConfig },
+                            set: { isPresented in
+                                isPresented
+                                    ? presentationCoordinator.present(.reloadConfig)
+                                    : presentationCoordinator.dismissDialog()
+                            }
                         )
-                    }
-                    .padding(20)
+                    )
+                    .padding(18)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .services:
@@ -162,6 +176,13 @@ struct AppShellView: View {
 }
 
 private extension AppShellView {
+    var runtimeStatusText: String {
+        guard let snapshot = viewModel.snapshot else {
+            return viewModel.isLoading ? "Lade Status" : "Bereit"
+        }
+        return snapshot.caddyRuntimeStatus.isRunning ? "Caddy läuft" : "Caddy gestoppt"
+    }
+
     var dialogTitle: String {
         switch presentationCoordinator.activeDialog {
         case .caddyUpdate:

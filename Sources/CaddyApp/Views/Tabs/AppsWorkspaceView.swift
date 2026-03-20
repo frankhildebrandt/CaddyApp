@@ -8,11 +8,15 @@ struct AppsWorkspaceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Apps")
-                .font(.title2.bold())
-            Text("On-Demand-Apps und Presets sind jetzt als eigener Arbeitsbereich zusammengefasst.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Apps")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppChrome.primaryText)
+                Text("On-Demand-Apps und Presets sind jetzt als eigener Arbeitsbereich zusammengefasst.")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppChrome.secondaryText)
+            }
+
             SettingsOnDemandPaneView(
                 snapshot: snapshot,
                 dashboardViewModel: viewModel,
@@ -21,5 +25,6 @@ struct AppsWorkspaceView: View {
             )
             .frame(minHeight: 520)
         }
+        .padding(18)
     }
 }
