@@ -6,20 +6,18 @@ struct AppSidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Color.clear
-                .frame(height: 30)
+            List(selection: $selectedTab) {
+                Section("Start") {
+                    sidebarItem(for: .overview)
+                }
 
-            VStack(alignment: .leading, spacing: 6) {
-                sectionLabel("Start")
-                sidebarButton(for: .overview)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                sectionLabel("Bereiche")
-                ForEach([AppSidebarTab.setupStatus, .routing, .services, .apps, .monitoring], id: \.self) { tab in
-                    sidebarButton(for: tab)
+                Section("Bereiche") {
+                    ForEach([AppSidebarTab.setupStatus, .routing, .services, .apps, .monitoring], id: \.self) { tab in
+                        sidebarItem(for: tab)
+                    }
                 }
             }
+            .listStyle(.sidebar)
 
             Spacer()
 
@@ -31,45 +29,17 @@ struct AppSidebarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(AppChrome.sidebarFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(Color.white.opacity(0.85), lineWidth: 1)
-                )
-        )
+        .background(AppChrome.sidebarFill.opacity(0.82))
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(AppChrome.secondaryText)
-            .padding(.leading, 6)
-            .padding(.top, 10)
-    }
-
-    private func sidebarButton(for tab: AppSidebarTab) -> some View {
-        Button {
-            selectedTab = tab
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: tab.systemImage)
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 18)
-                Text(tab.title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Spacer()
-            }
-            .foregroundStyle(AppChrome.primaryText)
-            .padding(.horizontal, 12)
-            .frame(height: 38)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill((selectedTab ?? .overview) == tab ? AppChrome.selectionFill : Color.clear)
-            )
+    private func sidebarItem(for tab: AppSidebarTab) -> some View {
+        NavigationLink(value: tab) {
+            Label(tab.title, systemImage: tab.systemImage)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppChrome.primaryText)
+                .padding(.leading, 6)
         }
-        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 8))
     }
 
     private func footerButton(title: String, systemImage: String, action: (() -> Void)? = nil) -> some View {

@@ -17,13 +17,13 @@ struct AppShellView: View {
             )
             .ignoresSafeArea()
 
-            HStack(spacing: 18) {
+            NavigationSplitView {
                 AppSidebarView(
                     selectedTab: $selectedTab,
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
-                .frame(width: 294)
-
+                .navigationSplitViewColumnWidth(min: 230, ideal: 280)
+            } detail: {
                 VStack(spacing: 0) {
                     AppHeaderView(
                         isLoading: viewModel.isLoading,
@@ -35,22 +35,24 @@ struct AppShellView: View {
 
                     detailContent
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                .fill(AppChrome.contentCanvas)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
-                                )
-                        )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(AppChrome.contentCanvas)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                        )
+                )
+                .navigationTitle((selectedTab ?? .overview).title)
             }
             .padding(.top, 8)
             .padding(.leading, 10)
             .padding(.trailing, 10)
             .padding(.bottom, 10)
         }
+        .navigationSplitViewStyle(.balanced)
         .onAppear {
             viewModel.refreshIfNeeded()
         }

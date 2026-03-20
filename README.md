@@ -79,7 +79,7 @@ Build-Artefakte:
 
 ## Projektstruktur
 
-- `Sources/CaddyApp/Views/AppShell/` - Hauptfenster-Shell (Header, Sidebar, Main-Layout)
+- `Sources/CaddyApp/Views/AppShell/` - Hauptfenster-Shell mit `NavigationSplitView`, Sidebar und Main-Layout
 - `Sources/CaddyApp/Views/Tabs/` - task-orientierte Arbeitsbereiche (Uebersicht/Setup/Routing/Services/Apps/Monitoring)
 - `Sources/CaddyApp/Views/Settings/` - Settings-Root + Pane-Views
 - `Sources/CaddyApp/Views/OnDemand/` - On-Demand-Feature-Komponenten

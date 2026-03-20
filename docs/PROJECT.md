@@ -19,7 +19,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Dashboard runtime polling interval tuned to reduce idle CPU pressure.
 - Loading UX standardized with skeleton placeholders and inline skeleton activity states.
 - Global app menu plus native macOS settings window (`Apple-,`) added.
-- Main window now uses `AppShellView` with dedicated shell components (`AppHeaderView`, `AppSidebarView`) and per-feature detail views.
+- Main window now uses `AppShellView` with a native `NavigationSplitView`, dedicated shell components (`AppHeaderView`, `AppSidebarView`), and per-feature detail views.
 - Settings are decoupled into `SettingsRootView` and organized as `AppConfig` sections (`App Behavior`, `Feed Sync`, `Routing`, `Apps`, `Services`).
 - On-Demand, Multipass, and Settings feature state is segmented into feature view models under `ViewModels/Features/*`.
 - Domain layer refactor: model types are split into one-type-per-file under `Models/**`; validation/normalization/routing rules now live in models instead of view models.
