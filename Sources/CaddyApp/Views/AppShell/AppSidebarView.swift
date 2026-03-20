@@ -7,7 +7,7 @@ struct AppSidebarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Color.clear
-                .frame(height: 38)
+                .frame(height: 30)
 
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel("Start")

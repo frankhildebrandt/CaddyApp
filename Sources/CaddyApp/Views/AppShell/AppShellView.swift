@@ -22,7 +22,7 @@ struct AppShellView: View {
                     selectedTab: $selectedTab,
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
-                .frame(width: 300)
+                .frame(width: 294)
 
                 VStack(spacing: 0) {
                     AppHeaderView(
@@ -46,7 +46,10 @@ struct AppShellView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(18)
+            .padding(.top, 8)
+            .padding(.leading, 10)
+            .padding(.trailing, 10)
+            .padding(.bottom, 10)
         }
         .onAppear {
             viewModel.refreshIfNeeded()
