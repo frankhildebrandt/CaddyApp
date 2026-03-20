@@ -40,7 +40,7 @@ struct AppHeaderView: View {
         }
         .padding(.horizontal, 22)
         .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.bottom, 12) 
     }
 
     private var searchField: some View {

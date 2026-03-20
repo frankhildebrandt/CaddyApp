@@ -26,10 +26,9 @@ struct AppSidebarView: View {
                 footerButton(title: "Einstellungen", systemImage: "gearshape", action: onOpenSettings)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, 4).padding(.trailing, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(AppChrome.sidebarFill.opacity(0.82))
+        //.background(AppChrome.sidebarFill.opacity(0.82))
     }
 
     private func sidebarItem(for tab: AppSidebarTab) -> some View {

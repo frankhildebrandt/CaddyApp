@@ -9,13 +9,12 @@ struct AppShellView: View {
     @State private var selectedTab: AppSidebarTab? = .overview
 
     var body: some View {
-        ZStack {
+        ZStack{
             LinearGradient(
                 colors: [AppChrome.canvasTop, AppChrome.canvasBottom],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea()
 
             NavigationSplitView {
                 AppSidebarView(
@@ -23,7 +22,9 @@ struct AppShellView: View {
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280)
-            } detail: {
+            }
+            
+            detail: {
                 VStack(spacing: 0) {
                     AppHeaderView(
                         isLoading: viewModel.isLoading,
@@ -32,26 +33,18 @@ struct AppShellView: View {
                         onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
                         onRefresh: viewModel.refresh
                     )
-
-                    detailContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    
+                    ZStack {
+                        detailContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                    .padding(.horizontal, 22)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(AppChrome.contentCanvas)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                .stroke(Color.white.opacity(0.55), lineWidth: 1)
-                        )
-                )
-                .navigationTitle((selectedTab ?? .overview).title)
+                .ignoresSafeArea(edges: .top)
+
             }
-            .padding(.top, 8)
-            .padding(.leading, 10)
-            .padding(.trailing, 10)
-            .padding(.bottom, 10)
         }
+        .ignoresSafeArea(.all)
         .navigationSplitViewStyle(.balanced)
         .onAppear {
             viewModel.refreshIfNeeded()
@@ -119,11 +112,7 @@ struct AppShellView: View {
             case .overview:
                 ScrollView {
                     DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                        .frame(maxWidth: 1100, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 22)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .setupStatus:
                 ScrollView {
                     SystemTabView(
@@ -138,11 +127,7 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .frame(maxWidth: 1100, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 22)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .routing:
                 ScrollView {
                     ConfigTabView(
@@ -157,47 +142,28 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .frame(maxWidth: 1100, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 22)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .services:
                 ServicesWorkspaceView(snapshot: snapshot, viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .apps:
                 AppsWorkspaceView(
                     snapshot: snapshot,
                     viewModel: viewModel,
                     presentationCoordinator: presentationCoordinator
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .monitoring:
                 ScrollView {
                     MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
-                        .frame(maxWidth: 1100, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 22)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         } else if viewModel.isLoading {
             AppSkeletonView()
-                .padding(.top, 6)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if (selectedTab ?? .overview) == .monitoring {
             ScrollView {
                 MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
-                    .frame(maxWidth: 1100, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 22)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             Text("No data loaded yet")
-                .foregroundStyle(.secondary)
-                .padding(.top, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }
