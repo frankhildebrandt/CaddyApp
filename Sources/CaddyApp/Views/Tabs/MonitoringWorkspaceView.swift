@@ -26,5 +26,7 @@ struct MonitoringWorkspaceView: View {
                     .padding(.top, 4)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18)
     }
 }

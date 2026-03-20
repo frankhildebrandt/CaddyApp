@@ -173,16 +173,26 @@ struct AppShellView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .monitoring:
-                MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                ScrollView {
+                    MonitoringWorkspaceView(snapshot: snapshot, viewModel: viewModel)
+                        .frame(maxWidth: 1100, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 22)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         } else if viewModel.isLoading {
             AppSkeletonView()
                 .padding(.top, 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if (selectedTab ?? .overview) == .monitoring {
-            MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            ScrollView {
+                MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
+                    .frame(maxWidth: 1100, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             Text("No data loaded yet")
                 .foregroundStyle(.secondary)
