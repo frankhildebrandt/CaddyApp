@@ -10,85 +10,107 @@ struct AppHeaderView: View {
     let onRefresh: () -> Void
 
     var body: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 12) {
             Spacer(minLength: 0)
 
-            statusPill(
-                title: "Runtime",
-                value: runtimeStatusText,
-                systemImage: "bolt.shield"
-            )
+            compactPill(title: "Runtime", value: runtimeStatusText, systemImage: "bolt.shield")
+            compactPill(title: "Feed", value: syncStatusText, systemImage: "arrow.clockwise")
 
-            statusPill(
-                title: "Feed Sync",
-                value: syncStatusText,
-                systemImage: "arrow.trianglehead.2.clockwise"
-            )
+            searchField
 
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.84))
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(AppChrome.secondaryText)
-                    TextField("Suchen", text: $searchQuery)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 16)
-            }
-            .frame(width: 260, height: 52)
-
-            Button(action: onOpenSettings) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .appGlassCard(cornerRadius: 18, fill: Color.white.opacity(0.8))
+            iconButton(systemImage: "slider.horizontal.3", action: onOpenSettings)
 
             Button(action: onRefresh) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
                     Text(isLoading ? "Lädt..." : "Aktualisieren")
-                        .fontWeight(.semibold)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                 }
-                .frame(minWidth: 140, minHeight: 52)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(AppChrome.accent)
+                )
             }
-            .disabled(isLoading)
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(AppChrome.accent)
-            )
+            .disabled(isLoading)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
-        .padding(.bottom, 18)
+        .padding(.horizontal, 26)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
     }
 
-    private func statusPill(title: String, value: String, systemImage: String) -> some View {
+    private var searchField: some View {
         HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AppChrome.accent)
-                .frame(width: 28, height: 28)
-                .background(Color.white.opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppChrome.secondaryText)
+            TextField("Suchen", text: $searchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+        }
+        .padding(.horizontal, 16)
+        .frame(width: 320, height: 44)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.9), lineWidth: 1)
+        )
+    }
 
-            VStack(alignment: .leading, spacing: 2) {
+    private func compactPill(title: String, value: String, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(AppChrome.accent)
+                .frame(width: 24, height: 24)
+                .background(Color.white.opacity(0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(AppChrome.secondaryText)
                 Text(value)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppChrome.primaryText)
                     .lineLimit(1)
+                    .frame(maxWidth: 92, alignment: .leading)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .appGlassCard(cornerRadius: 20, fill: Color.white.opacity(0.82))
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.88), lineWidth: 1)
+        )
+    }
+
+    private func iconButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppChrome.primaryText)
+                .frame(width: 44, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.82))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.88), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -51,28 +51,35 @@ struct DashboardTabView: View {
     private var heroSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Starte deine lokale Plattform")
-                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(AppChrome.primaryText)
 
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.84))
-                .frame(height: 62)
+                .fill(Color.white.opacity(0.94))
+                .frame(height: 58)
                 .overlay(alignment: .leading) {
                     Text("Domains, Services oder Logs direkt im Blick behalten…")
-                        .font(.system(size: 24, weight: .medium, design: .rounded))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppChrome.secondaryText)
                         .padding(.horizontal, 22)
                 }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 14)], spacing: 14) {
                 actionCard(title: "Routing prüfen", icon: "arrow.triangle.branch", summary: "\(snapshot.configPreview.routeCount) aktive Routen")
                 actionCard(title: "Services öffnen", icon: "shippingbox", summary: "\(snapshot.runtimeTargets.count) erkannte Targets")
                 actionCard(title: "TLS Status", icon: "lock.shield", summary: snapshot.tlsStatus.systemKeychainTrustStatus.label)
                 actionCard(title: "Logs & Monitoring", icon: "waveform.path.ecg", summary: snapshot.generatedAt.formatted(date: .omitted, time: .shortened))
             }
         }
-        .padding(24)
-        .appGlassCard(cornerRadius: 30)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.white.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(Color.white.opacity(0.92), lineWidth: 1)
+        )
     }
 
     private var warningSection: some View {
@@ -95,7 +102,10 @@ struct DashboardTabView: View {
             }
             .padding(22)
         }
-        .appGlassCard(cornerRadius: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.9))
+        )
     }
 
     private var setupSection: some View {
@@ -135,7 +145,10 @@ struct DashboardTabView: View {
             }
             .padding(22)
         }
-        .appGlassCard(cornerRadius: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.9))
+        )
     }
 
     private var isCertificateValid: Bool {
@@ -172,8 +185,11 @@ struct DashboardTabView: View {
                     )
                 }
             }
-            .padding(22)
-            .appGlassCard(cornerRadius: 26)
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.white.opacity(0.9))
+            )
         }
     }
 
@@ -194,7 +210,6 @@ struct DashboardTabView: View {
             }
         }
         .padding(10)
-        .appGlassCard(cornerRadius: 22, fill: Color.white.opacity(0.55))
     }
 
     private func runtimeLinkCard(_ target: RuntimeTarget) -> some View {
@@ -246,7 +261,14 @@ struct DashboardTabView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
             .padding(12)
-            .appGlassCard(cornerRadius: 18, fill: AppChrome.tileFill)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(AppChrome.tileSoftFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1)
+            )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -280,7 +302,7 @@ struct DashboardTabView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(Color.white.opacity(0.88))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -309,7 +331,7 @@ struct DashboardTabView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(Color.white.opacity(0.88))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -320,19 +342,26 @@ struct DashboardTabView: View {
     private func actionCard(title: String, icon: String, summary: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(AppChrome.primaryText)
             Text(title)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(AppChrome.primaryText)
             Text(summary)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(AppChrome.secondaryText)
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
         .padding(18)
-        .appGlassCard(cornerRadius: 24, fill: Color.white.opacity(0.68))
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(AppChrome.tileFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.88), lineWidth: 1)
+        )
     }
 
     private func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {

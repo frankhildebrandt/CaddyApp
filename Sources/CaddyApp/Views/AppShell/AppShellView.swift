@@ -17,12 +17,12 @@ struct AppShellView: View {
             )
             .ignoresSafeArea()
 
-            HStack(spacing: 22) {
+            HStack(spacing: 18) {
                 AppSidebarView(
                     selectedTab: $selectedTab,
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
-                .frame(width: 286)
+                .frame(width: 322)
 
                 VStack(spacing: 0) {
                     AppHeaderView(
@@ -36,18 +36,17 @@ struct AppShellView: View {
                     detailContent
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .background(
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                .fill(Color.white.opacity(0.52))
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .fill(AppChrome.contentCanvas)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
                                 )
                         )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.vertical, 8)
             }
-            .padding(20)
+            .padding(18)
         }
         .onAppear {
             viewModel.refreshIfNeeded()
@@ -115,8 +114,9 @@ struct AppShellView: View {
             case .overview:
                 ScrollView {
                     DashboardTabView(snapshot: snapshot, openURLAction: openURL)
-                        .frame(maxWidth: 1060, alignment: .leading)
-                        .padding(26)
+                        .frame(maxWidth: 1100, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 22)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .setupStatus:
@@ -133,8 +133,9 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .frame(maxWidth: 1060, alignment: .leading)
-                    .padding(26)
+                    .frame(maxWidth: 1100, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .routing:
@@ -151,8 +152,9 @@ struct AppShellView: View {
                             }
                         )
                     )
-                    .frame(maxWidth: 1060, alignment: .leading)
-                    .padding(26)
+                    .frame(maxWidth: 1100, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             case .services:
@@ -188,9 +190,9 @@ struct AppShellView: View {
 private extension AppShellView {
     var runtimeStatusText: String {
         guard let snapshot = viewModel.snapshot else {
-            return viewModel.isLoading ? "Lade Status" : "Bereit"
+            return viewModel.isLoading ? "Lädt" : "Bereit"
         }
-        return snapshot.caddyRuntimeStatus.isRunning ? "Caddy läuft" : "Caddy gestoppt"
+        return snapshot.caddyRuntimeStatus.isRunning ? "Aktiv" : "Gestoppt"
     }
 
     var dialogTitle: String {
