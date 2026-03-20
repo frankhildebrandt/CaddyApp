@@ -10,7 +10,7 @@ struct AppHeaderView: View {
     let onRefresh: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Spacer(minLength: 0)
 
             compactPill(title: "Runtime", value: runtimeStatusText, systemImage: "bolt.shield")
@@ -23,24 +23,24 @@ struct AppHeaderView: View {
             Button(action: onRefresh) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                     Text(isLoading ? "Lädt..." : "Aktualisieren")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .frame(height: 44)
+                .padding(.horizontal, 16)
+                .frame(height: 40)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(AppChrome.accent)
                 )
             }
             .buttonStyle(.plain)
             .disabled(isLoading)
         }
-        .padding(.horizontal, 26)
-        .padding(.top, 10)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     private var searchField: some View {
@@ -52,14 +52,14 @@ struct AppHeaderView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .medium, design: .rounded))
         }
-        .padding(.horizontal, 16)
-        .frame(width: 320, height: 44)
+        .padding(.horizontal, 14)
+        .frame(width: 280, height: 40)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.92))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.9), lineWidth: 1)
         )
     }
@@ -67,31 +67,31 @@ struct AppHeaderView: View {
     private func compactPill(title: String, value: String, systemImage: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(AppChrome.accent)
-                .frame(width: 24, height: 24)
+                .frame(width: 20, height: 20)
                 .background(Color.white.opacity(0.95))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundStyle(AppChrome.secondaryText)
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppChrome.primaryText)
                     .lineLimit(1)
-                    .frame(maxWidth: 92, alignment: .leading)
+                    .frame(maxWidth: 72, alignment: .leading)
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 44)
+        .padding(.horizontal, 10)
+        .frame(height: 40)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.white.opacity(0.82))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.white.opacity(0.88), lineWidth: 1)
         )
     }
@@ -101,13 +101,13 @@ struct AppHeaderView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(AppChrome.primaryText)
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color.white.opacity(0.82))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(Color.white.opacity(0.88), lineWidth: 1)
                 )
         }

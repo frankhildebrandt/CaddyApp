@@ -51,7 +51,7 @@ struct DashboardTabView: View {
     private var heroSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Starte deine lokale Plattform")
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
                 .foregroundStyle(AppChrome.primaryText)
 
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -59,7 +59,7 @@ struct DashboardTabView: View {
                 .frame(height: 58)
                 .overlay(alignment: .leading) {
                     Text("Domains, Services oder Logs direkt im Blick behalten…")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppChrome.secondaryText)
                         .padding(.horizontal, 22)
                 }
@@ -71,7 +71,7 @@ struct DashboardTabView: View {
                 actionCard(title: "Logs & Monitoring", icon: "waveform.path.ecg", summary: snapshot.generatedAt.formatted(date: .omitted, time: .shortened))
             }
         }
-        .padding(20)
+        .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(Color.white.opacity(0.88))
@@ -84,8 +84,8 @@ struct DashboardTabView: View {
 
     private var warningSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Hinweise")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text("Hinweise")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(AppChrome.primaryText)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -111,7 +111,7 @@ struct DashboardTabView: View {
     private var setupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Letzte automatische Aktionen")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(AppChrome.primaryText)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -166,7 +166,7 @@ struct DashboardTabView: View {
         if !multipassTargets.isEmpty || !podTargets.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Schnellzugriff")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(AppChrome.primaryText)
 
                 if !multipassTargets.isEmpty {

@@ -6,16 +6,16 @@ struct SettingsServicesPaneView: View {
     @ObservedObject var multipassViewModel: MultipassViewModel
 
     var body: some View {
-        List {
-            if let snapshot {
-                Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let snapshot {
                     multipassSection(snapshot)
+                } else {
+                    AppSkeletonView()
                 }
-            } else {
-                AppSkeletonView()
             }
+            .padding(.vertical, 4)
         }
-        .listStyle(.automatic)
     }
 
     private func multipassSection(_ snapshot: DashboardSnapshot) -> some View {

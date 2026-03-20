@@ -22,7 +22,7 @@ struct AppShellView: View {
                     selectedTab: $selectedTab,
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
-                .frame(width: 322)
+                .frame(width: 300)
 
                 VStack(spacing: 0) {
                     AppHeaderView(

@@ -5,19 +5,20 @@ struct AppSidebarView: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                AppBrandIcon(size: 36)
+                AppBrandIcon(size: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("CaddyApp")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(AppChrome.primaryText)
                     Text("Control Center")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(AppChrome.secondaryText)
                 }
             }
-            .padding(.bottom, 4)
+            .padding(.top, 24)
+            .padding(.bottom, 2)
 
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel("Start")
@@ -38,8 +39,8 @@ struct AppSidebarView: View {
                 footerButton(title: "Einstellungen", systemImage: "gearshape", action: onOpenSettings)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -53,7 +54,7 @@ struct AppSidebarView: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
             .foregroundStyle(AppChrome.secondaryText)
             .padding(.leading, 4)
             .padding(.top, 8)
@@ -65,15 +66,15 @@ struct AppSidebarView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: tab.systemImage)
-                    .font(.system(size: 15, weight: .medium))
-                    .frame(width: 20)
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 18)
                 Text(tab.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                 Spacer()
             }
             .foregroundStyle(AppChrome.primaryText)
             .padding(.horizontal, 12)
-            .frame(height: 44)
+            .frame(height: 40)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill((selectedTab ?? .overview) == tab ? AppChrome.selectionFill : Color.clear)
@@ -88,14 +89,14 @@ struct AppSidebarView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                 Spacer()
             }
             .foregroundStyle(AppChrome.secondaryText)
             .padding(.horizontal, 14)
-            .frame(height: 40)
+            .frame(height: 36)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.white.opacity(0.78))
