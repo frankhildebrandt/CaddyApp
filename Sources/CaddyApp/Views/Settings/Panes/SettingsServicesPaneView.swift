@@ -86,7 +86,7 @@ struct SettingsServicesPaneView: View {
                         Text("Keine Multipass VMs erkannt.")
                             .foregroundStyle(.secondary)
                     } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 12)], spacing: 12) {
+                        LazyVStack(spacing: 12) {
                             ForEach(sortedVMNames, id: \.self) { vmName in
                                 multipassVMCard(
                                     vmName: vmName,
@@ -239,6 +239,7 @@ struct SettingsServicesPaneView: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -311,61 +312,83 @@ struct SettingsServicesPaneView: View {
                 tertiaryServiceRowStacked(serviceBinding: serviceBinding)
             }
 
-            HStack {
-                if let runtimeStatus {
-                    Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .start)
-                } label: {
-                    Label("Start", systemImage: "play.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
-                Button {
-                    dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stop)
-                } label: {
-                    Label("Stop", systemImage: "stop.circle.fill")
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
-                if !serviceBinding.wrappedValue.systemdUnit.isEmpty {
-                    Button {
-                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
-                    } label: {
-                        Label("Start unit", systemImage: "bolt.circle")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
-                    Button {
-                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
-                    } label: {
-                        Label("Restart unit", systemImage: "arrow.clockwise.circle")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
-                    Button {
-                        dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
-                    } label: {
-                        Label("Stop unit", systemImage: "power.circle")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
-                }
-                Button(role: .destructive) {
-                    dashboardViewModel.removeMultipassService(id: serviceID)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
+            if let runtimeStatus {
+                Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            actionsRow(for: serviceID, hasSystemdUnit: !serviceBinding.wrappedValue.systemdUnit.isEmpty)
             Divider()
         }
+    }
+
+    @ViewBuilder
+    private func actionsRow(for serviceID: UUID, hasSystemdUnit: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                serviceActionButtons(serviceID: serviceID, hasSystemdUnit: hasSystemdUnit)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                serviceActionButtons(serviceID: serviceID, hasSystemdUnit: hasSystemdUnit)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func serviceActionButtons(serviceID: UUID, hasSystemdUnit: Bool) -> some View {
+        Button {
+            dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .start)
+        } label: {
+            Label("Start", systemImage: "play.circle.fill")
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.green)
+        .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
+
+        Button {
+            dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stop)
+        } label: {
+            Label("Stop", systemImage: "stop.circle.fill")
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
+        .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
+
+        if hasSystemdUnit {
+            Button {
+                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
+            } label: {
+                Label("Start unit", systemImage: "bolt.circle")
+            }
+            .buttonStyle(.bordered)
+            .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
+
+            Button {
+                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
+            } label: {
+                Label("Restart unit", systemImage: "arrow.clockwise.circle")
+            }
+            .buttonStyle(.bordered)
+            .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
+
+            Button {
+                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
+            } label: {
+                Label("Stop unit", systemImage: "power.circle")
+            }
+            .buttonStyle(.bordered)
+            .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
+        }
+
+        Button(role: .destructive) {
+            dashboardViewModel.removeMultipassService(id: serviceID)
+        } label: {
+            Image(systemName: "trash")
+        }
+        .buttonStyle(.borderless)
     }
 
     private func assistantRow(vmNames: [String]) -> some View {
