@@ -48,10 +48,7 @@ actor OnDemandAppsService {
     }
 
     func reloadConfiguration() {
-        var config = configStore.load()
-        if let synced = syncMultipassConfigFromYAML(base: config) {
-            config = synced
-        }
+        let config = configStore.load()
         let apps = config.onDemandApps
         appsByID = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
         appIDByHost = Dictionary(uniqueKeysWithValues: apps.map { (Self.normalizeHostKey($0.host), $0.id) })
@@ -71,6 +68,42 @@ actor OnDemandAppsService {
         multipassSystemdStatusByID = multipassSystemdStatusByID.filter { validMultipassIDs.contains($0.key) }
         for service in multipassServices where multipassStates[service.id] == nil {
             multipassStates[service.id] = AppState(phase: .stopped)
+        }
+    }
+
+    func discoverMultipassServicesFromYAML() -> [MultipassServiceDraft] {
+        let listResult = runner.runShellWithBackoff(
+            "multipass list --format json",
+            key: "on-demand.multipass.yaml.list",
+            label: "Multipass",
+            timeout: 4
+        )
+        guard let listData = listResult.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: listData) as? [String: Any],
+              let list = json["list"] as? [[String: Any]] else {
+            return []
+        }
+
+        var discovered: [MultipassServiceDraft] = []
+        for item in list {
+            guard let vmName = item["name"] as? String else { continue }
+            let state = (item["state"] as? String ?? "").lowercased()
+            guard state == "running" else { continue }
+            let result = runner.runShellWithBackoff(
+                "multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'",
+                key: "on-demand.multipass.yaml.file.\(vmName.lowercased())",
+                label: "Multipass",
+                timeout: 3
+            )
+            guard result.isSuccess else { continue }
+            discovered.append(contentsOf: parseMultipassYAML(result.stdout, vmName: vmName))
+        }
+
+        return discovered.sorted {
+            if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
+                return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
+            }
+            return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
         }
     }
 
@@ -1121,65 +1154,6 @@ actor OnDemandAppsService {
         return result.isSuccess
     }
 
-    private func syncMultipassConfigFromYAML(base: AppConfig) -> AppConfig? {
-        let listResult = runner.runShellWithBackoff(
-            "multipass list --format json",
-            key: "on-demand.multipass.yaml.list",
-            label: "Multipass"
-        )
-        guard let listData = listResult.stdout.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: listData) as? [String: Any],
-              let list = json["list"] as? [[String: Any]] else {
-            return nil
-        }
-
-        let existingByKey = Dictionary(uniqueKeysWithValues: base.multipassServices.map { (multipassServiceKey(vm: $0.vmName, service: $0.serviceName), $0) })
-        var merged = base.multipassServices.filter { !$0.managedByYAML }
-        var discoveredYAMLKeys = Set<String>()
-
-        for item in list {
-            guard let vmName = item["name"] as? String else { continue }
-            let state = (item["state"] as? String ?? "").lowercased()
-            guard state == "running" else { continue }
-            let result = runner.runShellWithBackoff(
-                "multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'",
-                key: "on-demand.multipass.yaml.file.\(vmName.lowercased())",
-                label: "Multipass"
-            )
-            guard result.isSuccess else { continue }
-            let parsed = parseMultipassYAML(result.stdout, vmName: vmName)
-            for draft in parsed {
-                let key = multipassServiceKey(vm: draft.vmName, service: draft.serviceName)
-                discoveredYAMLKeys.insert(key)
-                if let existing = existingByKey[key], existing.managedByYAML {
-                    var updated = draft
-                    updated.id = existing.id
-                    merged.append(updated)
-                } else if existingByKey[key] == nil {
-                    merged.append(draft)
-                }
-            }
-        }
-
-        let previousYAMLKeys = Set(base.multipassServices.filter(\.managedByYAML).map {
-            multipassServiceKey(vm: $0.vmName, service: $0.serviceName)
-        })
-        let yamlSetChanged = previousYAMLKeys != discoveredYAMLKeys
-
-        let sortedMerged = merged.sorted {
-            if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
-                return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
-            }
-            return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
-        }
-
-        guard yamlSetChanged || sortedMerged != base.multipassServices else { return nil }
-        var updated = base
-        updated.multipassServices = sortedMerged
-        try? configStore.save(updated)
-        return updated
-    }
-
     private func parseMultipassYAML(_ yaml: String, vmName: String) -> [MultipassServiceDraft] {
         var inServices = false
         var current: [String: String] = [:]
@@ -1262,10 +1236,6 @@ actor OnDemandAppsService {
         if ["true", "yes", "1", "on"].contains(lowered) { return true }
         if ["false", "no", "0", "off"].contains(lowered) { return false }
         return defaultValue
-    }
-
-    private func multipassServiceKey(vm: String, service: String) -> String {
-        "\(vm.lowercased())::\(service.lowercased())"
     }
 
     private func dnsLabel(_ value: String) -> String? {

@@ -4,6 +4,7 @@ struct SettingsServicesPaneView: View {
     let snapshot: DashboardSnapshot?
     @ObservedObject var dashboardViewModel: DashboardViewModel
     @ObservedObject var multipassViewModel: MultipassViewModel
+    @State private var selectedDiscoveredService: MultipassServiceDraft?
 
     var body: some View {
         ScrollView {
@@ -16,20 +17,34 @@ struct SettingsServicesPaneView: View {
             }
             .padding(.vertical, 4)
         }
+        .sheet(item: $selectedDiscoveredService) { service in
+            MultipassDiscoveredServiceDetailView(
+                sourceService: service,
+                existingService: dashboardViewModel.multipassServices.first(where: { $0.configurationKey == service.configurationKey }),
+                dashboardViewModel: dashboardViewModel,
+                multipassViewModel: multipassViewModel
+            )
+        }
     }
 
     private func multipassSection(_ snapshot: DashboardSnapshot) -> some View {
         let multipassTargets = snapshot.runtimeTargets.filter { $0.source == .multipass }
         let targetByName = Dictionary(uniqueKeysWithValues: multipassTargets.map { ($0.name, $0) })
         let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.multipassServiceStatuses.map { ($0.id, $0) })
+        let discoveredByVM = Dictionary(grouping: snapshot.discoveredMultipassServices, by: { service in
+            let name = service.vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? "Unzugeordnet" : name
+        })
         let servicesByVM = Dictionary(grouping: Array(dashboardViewModel.multipassServices.indices), by: { index in
             let name = dashboardViewModel.multipassServices[index].vmName.trimmingCharacters(in: .whitespacesAndNewlines)
             return name.isEmpty ? "Unzugeordnet" : name
         })
         var vmNames = Set(multipassTargets.map(\.name))
         vmNames.formUnion(servicesByVM.keys.filter { $0 != "Unzugeordnet" })
+        vmNames.formUnion(discoveredByVM.keys.filter { $0 != "Unzugeordnet" })
         let sortedVMNames = vmNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         let unassignedServiceIndices = servicesByVM["Unzugeordnet"] ?? []
+        let unassignedDiscoveredServices = discoveredByVM["Unzugeordnet"] ?? []
 
         return VStack(alignment: .leading, spacing: 16) {
             GroupBox("Service-Assistent") {
@@ -76,6 +91,7 @@ struct SettingsServicesPaneView: View {
                                 multipassVMCard(
                                     vmName: vmName,
                                     target: targetByName[vmName],
+                                    discoveredServices: discoveredByVM[vmName] ?? [],
                                     serviceIndices: servicesByVM[vmName] ?? [],
                                     statusesByID: statusesByID
                                 )
@@ -97,6 +113,18 @@ struct SettingsServicesPaneView: View {
                         }
                     }
 
+                    if !unassignedDiscoveredServices.isEmpty {
+                        GroupBox("Entdeckte YAML-Services ohne VM") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Diese YAML-Services konnten keiner VM zugeordnet werden.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                discoveredServicesList(unassignedDiscoveredServices)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+
                     if let result = dashboardViewModel.lastMultipassVMControlResult {
                         StatusMessageView(message: result.message, isSuccess: result.succeeded)
                     }
@@ -113,6 +141,7 @@ struct SettingsServicesPaneView: View {
     private func multipassVMCard(
         vmName: String,
         target: RuntimeTarget?,
+        discoveredServices: [MultipassServiceDraft],
         serviceIndices: [Int],
         statusesByID: [UUID: MultipassServiceRuntimeStatus]
     ) -> some View {
@@ -185,6 +214,20 @@ struct SettingsServicesPaneView: View {
 
             Divider()
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Per YAML entdeckt")
+                    .font(.subheadline.weight(.semibold))
+                if discoveredServices.isEmpty {
+                    Text("Keine Services aus `/etc/caddy-app.yaml` erkannt.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    discoveredServicesList(discoveredServices)
+                }
+            }
+
+            Divider()
+
             if serviceIndices.isEmpty {
                 Text("Noch keine Services für diese VM konfiguriert.")
                     .font(.caption)
@@ -204,6 +247,43 @@ struct SettingsServicesPaneView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
+    }
+
+    private func discoveredServicesList(_ services: [MultipassServiceDraft]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(services.sorted {
+                $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+            }, id: \.configurationKey) { service in
+                let existingService = dashboardViewModel.multipassServices.first(where: { $0.configurationKey == service.configurationKey })
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text(service.serviceName)
+                                .font(.subheadline.weight(.semibold))
+                            if existingService != nil {
+                                Text("Konfiguriert")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.green.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        Text("\(service.scheme.rawValue) • \(service.targetPort) • \(service.host)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(existingService == nil ? "Konfigurieren" : "Details") {
+                        selectedDiscoveredService = service
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(10)
+                .background(Color.secondary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
     }
 
     private func multipassServiceRow(

@@ -254,6 +254,18 @@ final class DashboardViewModel: ObservableObject {
         multipassServices.append(draft.normalized())
     }
 
+    func saveMultipassService(_ draft: MultipassServiceDraft) -> Bool {
+        let normalized = draft.normalized()
+        if let existingIndex = multipassServices.firstIndex(where: { $0.configurationKey == normalized.configurationKey || $0.id == normalized.id }) {
+            var updated = normalized
+            updated.id = multipassServices[existingIndex].id
+            multipassServices[existingIndex] = updated
+        } else {
+            multipassServices.append(normalized)
+        }
+        return persistCurrentConfiguration(message: "Multipass-Service gespeichert. Routing-Konfiguration wird aktualisiert.")
+    }
+
     func addMultipassService(forVMName vmName: String) {
         let defaultService = MultipassServiceDraft.defaultForVM(vmName, existingServices: multipassServices)
         if defaultService.vmName.isEmpty {
@@ -480,6 +492,101 @@ final class DashboardViewModel: ObservableObject {
             )
             isSavingCustomConfig = false
         }
+    }
+
+    private func persistCurrentConfiguration(message: String) -> Bool {
+        guard !isSavingCustomConfig else { return false }
+        let existingConfig = appConfigStore.load()
+        let normalizedBundle = CustomConfigDraftBundle(
+            routes: customRoutes,
+            onDemandApps: onDemandApps,
+            multipassServices: multipassServices,
+            appRepositories: appRepositories
+        ).normalized()
+        let normalizedRoutes = normalizedBundle.routes
+        let normalizedOnDemandApps = normalizedBundle.onDemandApps
+        let normalizedMultipassServices = normalizedBundle.multipassServices
+        let normalizedRepositories = normalizedBundle.appRepositories
+
+        if let validationError = normalizedBundle.validateRoutes()?.localizedDescription {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: validationError,
+                performedAt: Date()
+            )
+            return false
+        }
+        if let validationError = normalizedBundle.validateOnDemandApps(existingRouteHosts: normalizedRoutes.map(\.host))?.localizedDescription {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: validationError,
+                performedAt: Date()
+            )
+            return false
+        }
+        if let validationError = normalizedBundle.validateMultipassServices(
+            existingHosts: normalizedRoutes.map(\.host) + normalizedOnDemandApps.map(\.host)
+        )?.localizedDescription {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: validationError,
+                performedAt: Date()
+            )
+            return false
+        }
+        if let validationError = normalizedBundle.validateRepositories()?.localizedDescription {
+            customConfigValidationError = validationError
+            lastCustomConfigSaveResult = CustomConfigSaveResult(
+                succeeded: false,
+                message: validationError,
+                performedAt: Date()
+            )
+            return false
+        }
+
+        customRoutes = normalizedRoutes
+        onDemandApps = normalizedOnDemandApps
+        multipassServices = normalizedMultipassServices
+        appRepositories = normalizedRepositories
+        isSavingCustomConfig = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                var config = existingConfig
+                config.customRoutes = normalizedRoutes
+                config.onDemandApps = normalizedOnDemandApps
+                config.multipassServices = normalizedMultipassServices
+                config.appRepositories = normalizedRepositories
+                config.routing = AppRoutingSettings(
+                    enableTraefikMeAliases: enableTraefikMeAliases,
+                    additionalCaddyfileConfig: customAdditionalCaddyfileConfig
+                )
+                config.general.hideWindowToMenuBarOnClose = hideWindowToMenuBarOnClose
+                config.repositorySync.autoUpdateEnabled = repositoryAutoUpdateEnabled
+                config.repositorySync.autoUpdateIntervalHours = repositoryAutoUpdateIntervalHours
+                try self.appConfigStore.save(config)
+                self.customConfigValidationError = nil
+                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
+                    succeeded: true,
+                    message: message,
+                    performedAt: Date()
+                )
+                self.isSavingCustomConfig = false
+                self.refresh()
+            } catch {
+                self.lastCustomConfigSaveResult = CustomConfigSaveResult(
+                    succeeded: false,
+                    message: "Speichern fehlgeschlagen: \(error.localizedDescription)",
+                    performedAt: Date()
+                )
+                self.isSavingCustomConfig = false
+            }
+        }
+        return true
     }
 
     func refreshLogs() {

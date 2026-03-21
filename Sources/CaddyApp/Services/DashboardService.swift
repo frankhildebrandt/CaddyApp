@@ -17,6 +17,7 @@ actor DashboardService {
         let runtimeTargets = runtimeService.discoverTargets()
         let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let discoveredMultipassServices = await onDemandAppsService.discoverMultipassServicesFromYAML()
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
@@ -64,6 +65,7 @@ actor DashboardService {
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
             onDemandAppStatuses: onDemandAppStatuses,
+            discoveredMultipassServices: discoveredMultipassServices,
             multipassServiceStatuses: multipassServiceStatuses,
             routes: routes,
             warnings: warnings,
@@ -76,6 +78,7 @@ actor DashboardService {
         let runtimeTargets = runtimeService.discoverTargets()
         let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
+        let discoveredMultipassServices = await onDemandAppsService.discoverMultipassServicesFromYAML()
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
@@ -108,6 +111,7 @@ actor DashboardService {
             configPreview: configPreview,
             runtimeTargets: runtimeTargets,
             onDemandAppStatuses: onDemandAppStatuses,
+            discoveredMultipassServices: discoveredMultipassServices,
             multipassServiceStatuses: multipassServiceStatuses,
             routes: routes,
             warnings: warnings,

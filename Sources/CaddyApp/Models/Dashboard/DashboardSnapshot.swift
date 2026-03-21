@@ -10,6 +10,7 @@ struct DashboardSnapshot {
     var configPreview: CaddyConfigPreview
     var runtimeTargets: [RuntimeTarget]
     var onDemandAppStatuses: [OnDemandAppRuntimeStatus]
+    var discoveredMultipassServices: [MultipassServiceDraft]
     var multipassServiceStatuses: [MultipassServiceRuntimeStatus]
     var routes: [ProxyRoute]
     var warnings: [String]

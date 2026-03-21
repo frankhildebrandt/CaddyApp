@@ -60,6 +60,12 @@ struct MultipassServiceDraft: Identifiable, Hashable, Codable {
         )
     }
 
+    var configurationKey: String {
+        let normalizedVM = vmName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedService = serviceName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return "\(normalizedVM)::\(normalizedService)"
+    }
+
     func normalized() -> MultipassServiceDraft {
         var normalized = self
         normalized.vmName = vmName.trimmingCharacters(in: .whitespacesAndNewlines)
