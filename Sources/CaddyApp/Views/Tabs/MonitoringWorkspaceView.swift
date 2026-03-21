@@ -14,11 +14,6 @@ struct MonitoringWorkspaceView: View {
                     RuntimeTabView(snapshot: snapshot)
                         .padding(.top, 4)
                 }
-
-                GroupBox("Capabilities") {
-                    FeaturesTabView(snapshot: snapshot)
-                        .padding(.top, 4)
-                }
             }
 
             GroupBox("Logs") {

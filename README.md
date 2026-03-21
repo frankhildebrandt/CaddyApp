@@ -89,7 +89,7 @@ Build-Artefakte:
 - `Sources/CaddyApp/Services/` - Caddy-, Runtime- und Systemintegration
 - `Sources/CaddyApp/Models/` - Domain-Modelle (one-type-per-file)
   - `Models/Config/`, `Models/Routing/`, `Models/OnDemand/`, `Models/Multipass/`
-  - `Models/Repository/`, `Models/Caddy/`, `Models/TLS/`, `Models/Setup/`, `Models/Dashboard/`, `Models/Features/`
+  - `Models/Repository/`, `Models/Caddy/`, `Models/TLS/`, `Models/Setup/`, `Models/Dashboard/`
 - `docs/features/` - Feature-Status und Fortschrittsdokumente
 - `docs/repository/` - YAML-Feeds fuer Web-Repositories
 - `scripts/` - Build- und Automatisierungs-Skripte

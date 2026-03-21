@@ -54,7 +54,6 @@ actor DashboardService {
 
         return DashboardSnapshot(
             generatedAt: Date(),
-            features: FeatureCatalog.items,
             caddyInstall: caddyInstall,
             latestRelease: latestRelease,
             caddyUpdateStatus: caddyUpdateStatus,
@@ -97,7 +96,6 @@ actor DashboardService {
 
         return DashboardSnapshot(
             generatedAt: Date(),
-            features: FeatureCatalog.items,
             caddyInstall: snapshot.caddyInstall,
             latestRelease: snapshot.latestRelease,
             caddyUpdateStatus: snapshot.caddyUpdateStatus,

@@ -27,6 +27,7 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - GitHub Pages repositories support automatic preset synchronization based on persisted feed-sync settings.
 - Dialog presentation is coordinated centrally to avoid duplicate confirmation prompts.
 - Main navigation follows user tasks (`Overview`, `Setup & Status`, `Routing`, `Services`, `Apps`, `Monitoring`).
+- Monitoring focuses on runtime and logs; internal feature-progress tracking is no longer surfaced in the app UI.
 
 ## Repository Structure
 

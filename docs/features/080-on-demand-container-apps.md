@@ -41,6 +41,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - Default app templates should include container image, exposed port, suggested host/path, and persistence volume hints.
 - Ephe template source: `https://github.com/unvalley/ephe`.
 - Caddy proxies On-Demand traffic directly to the app target first and only falls back to the local gateway (`127.0.0.1:49215`) when the direct backend is not reachable yet, so the app process is no longer in the steady-state hot path.
+- Idle access tracking is derived from Caddy access logs, which are tailed incrementally in-app, instead of relying on every request passing through the in-app gateway.
 - Runtime tab supports manual start/stop controls in addition to URL-triggered activation.
 - Logging tab records start/stop and warm-up events; concrete CLI calls are only logged on command failures.
 - On-demand app cards include per-app observability/ops sub-tabs (Config, Host-Log, Container/Pod-Log, Shell, Eventlog).

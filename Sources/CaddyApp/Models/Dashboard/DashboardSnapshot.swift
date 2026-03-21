@@ -2,7 +2,6 @@ import Foundation
 
 struct DashboardSnapshot {
     var generatedAt: Date
-    var features: [FeatureItem]
     var caddyInstall: CaddyInstallStatus
     var latestRelease: CaddyReleaseInfo?
     var caddyUpdateStatus: CaddyUpdateStatus

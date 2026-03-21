@@ -57,6 +57,10 @@ struct CaddyConfigService {
             lines.append("\(siteHosts.joined(separator: ", ")) {")
             lines.append("    tls internal")
             if let gatewayEndpoint = route.onDemandGatewayEndpoint {
+                lines.append("    log {")
+                lines.append("        output file \(caddyfileQuoted(AppPaths.caddyAccessLogFile.path))")
+                lines.append("        format json")
+                lines.append("    }")
                 lines.append("    route {")
                 lines.append("        reverse_proxy \(route.upstream) \(gatewayEndpoint) {")
                 lines.append("            lb_policy first")
@@ -124,5 +128,9 @@ struct CaddyConfigService {
         }
 
         return Array(Set(addresses)).sorted()
+    }
+
+    private func caddyfileQuoted(_ value: String) -> String {
+        "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
     }
 }

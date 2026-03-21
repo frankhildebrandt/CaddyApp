@@ -170,6 +170,7 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertTrue(preview.generatedCaddyfile.contains("reverse_proxy 127.0.0.1:3000 127.0.0.1:49215"))
         XCTAssertTrue(preview.generatedCaddyfile.contains("lb_policy first"))
         XCTAssertTrue(preview.generatedCaddyfile.contains("dial_timeout 250ms"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("caddy-access.jsonl"))
         XCTAssertTrue(preview.generatedCaddyfile.contains("reverse_proxy 127.0.0.1:3000"))
     }
 

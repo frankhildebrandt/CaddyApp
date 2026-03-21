@@ -30,6 +30,9 @@ actor OnDemandAppsService {
     private let scheduler = InternalScheduler()
     private let listenerQueue = DispatchQueue(label: "caddyapp.on-demand.gateway")
     private var listener: NWListener?
+    private var caddyAccessLogOffset: UInt64 = 0
+    private var caddyAccessLogRemainder = Data()
+    private var lastCaddyAccessLogSyncAt: Date?
     private var appsByID: [UUID: OnDemandAppDraft] = [:]
     private var appIDByHost: [String: UUID] = [:]
     private var states: [UUID: AppState] = [:]
@@ -72,6 +75,7 @@ actor OnDemandAppsService {
     }
 
     func statuses() -> [OnDemandAppRuntimeStatus] {
+        syncAccessTimesFromCaddyLogIfNeeded()
         refreshStatesFromRuntime()
         return appsByID.values
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -97,6 +101,7 @@ actor OnDemandAppsService {
     }
 
     func multipassStatuses() -> [MultipassServiceRuntimeStatus] {
+        syncAccessTimesFromCaddyLogIfNeeded()
         refreshMultipassStatesFromRuntime()
         return multipassServicesByID.values
             .sorted {
@@ -250,6 +255,7 @@ actor OnDemandAppsService {
     }
 
     private func stopIdleAppsIfNeeded() async {
+        syncAccessTimesFromCaddyLogIfNeeded(force: true)
         let now = Date()
         for app in appsByID.values where app.enabled {
             guard let state = states[app.id], state.phase == .running, let lastAccessAt = state.lastAccessAt else { continue }
@@ -759,6 +765,89 @@ actor OnDemandAppsService {
             state.lastAccessAt = Date()
             state.lastActionAt = Date()
             state.phase = .running
+            multipassStates[serviceID] = state
+        }
+    }
+
+    private func syncAccessTimesFromCaddyLogIfNeeded(force: Bool = false) {
+        let now = Date()
+        if !force, let lastSync = lastCaddyAccessLogSyncAt, now.timeIntervalSince(lastSync) < 1 {
+            return
+        }
+        lastCaddyAccessLogSyncAt = now
+
+        let path = AppPaths.caddyAccessLogFile.path
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: path) else {
+            caddyAccessLogOffset = 0
+            caddyAccessLogRemainder = Data()
+            return
+        }
+
+        guard let attributes = try? fileManager.attributesOfItem(atPath: path),
+              let fileSize = attributes[.size] as? NSNumber else {
+            return
+        }
+
+        let currentSize = fileSize.uint64Value
+        if currentSize < caddyAccessLogOffset {
+            caddyAccessLogOffset = 0
+            caddyAccessLogRemainder = Data()
+        }
+
+        guard let handle = try? FileHandle(forReadingFrom: AppPaths.caddyAccessLogFile) else { return }
+        defer { try? handle.close() }
+
+        do {
+            try handle.seek(toOffset: caddyAccessLogOffset)
+            let chunk = try handle.readToEnd() ?? Data()
+            caddyAccessLogOffset += UInt64(chunk.count)
+            processCaddyAccessLogChunk(chunk)
+        } catch {
+            AppLogService.logError("Failed to read Caddy access log: \(error.localizedDescription)")
+        }
+    }
+
+    private func processCaddyAccessLogChunk(_ chunk: Data) {
+        guard !chunk.isEmpty || !caddyAccessLogRemainder.isEmpty else { return }
+
+        var combined = caddyAccessLogRemainder
+        combined.append(chunk)
+
+        let newline = Data([0x0A])
+        var searchRange = combined.startIndex..<combined.endIndex
+        var consumedIndex = combined.startIndex
+
+        while let lineRange = combined.range(of: newline, options: [], in: searchRange) {
+            let dataRange = consumedIndex..<lineRange.lowerBound
+            let lineData = combined.subdata(in: dataRange)
+            processCaddyAccessLogLine(lineData)
+            consumedIndex = lineRange.upperBound
+            searchRange = consumedIndex..<combined.endIndex
+        }
+
+        caddyAccessLogRemainder = consumedIndex < combined.endIndex ? combined.subdata(in: consumedIndex..<combined.endIndex) : Data()
+    }
+
+    private func processCaddyAccessLogLine(_ lineData: Data) {
+        guard !lineData.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+              let request = json["request"] as? [String: Any],
+              let hostValue = request["host"] as? String else {
+            return
+        }
+
+        let hostKey = Self.normalizeHostKey(hostValue)
+        guard !hostKey.isEmpty, let mapped = resolveBackend(forHost: hostKey) else { return }
+
+        switch mapped {
+        case let .onDemand(appID, _):
+            var state = states[appID] ?? AppState()
+            state.lastAccessAt = Date()
+            states[appID] = state
+        case let .multipass(serviceID, _):
+            var state = multipassStates[serviceID] ?? AppState()
+            state.lastAccessAt = Date()
             multipassStates[serviceID] = state
         }
     }
@@ -1423,12 +1512,31 @@ actor OnDemandAppsService {
     }
 
     private static func normalizeHostKey(_ value: String) -> String {
-        value
+        let normalized = value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .split(separator: ":")
             .first
             .map(String.init) ?? ""
+        return canonicalHost(from: normalized)
+    }
+
+    private static func canonicalHost(from value: String) -> String {
+        let labels = value.split(separator: ".")
+        guard labels.count > 6,
+              Array(labels.suffix(2)).map(String.init) == ["traefik", "me"] else {
+            return value
+        }
+
+        let ipCandidate = labels.suffix(6).prefix(4)
+        guard ipCandidate.count == 4,
+              ipCandidate.allSatisfy({ Int($0).map { (0...255).contains($0) } ?? false }) else {
+            return value
+        }
+
+        let baseLabels = labels.dropLast(6)
+        guard !baseLabels.isEmpty else { return value }
+        return baseLabels.joined(separator: ".") + ".localhost"
     }
 }
 

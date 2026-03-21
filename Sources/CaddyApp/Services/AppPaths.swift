@@ -12,4 +12,7 @@ enum AppPaths {
 
     static let appLogFile = appSupportDirectory
         .appendingPathComponent("caddyapp.log", isDirectory: false)
+
+    static let caddyAccessLogFile = appSupportDirectory
+        .appendingPathComponent("caddy-access.jsonl", isDirectory: false)
 }
