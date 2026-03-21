@@ -7,33 +7,35 @@ hero:
   tagline: macOS-App für Caddy-Setup, `*.localhost`-Routing, Multipass-Services und On-Demand-Apps.
   actions:
     - text: Erste Schritte
-      link: /guides/getting-started/
+      link: ./guides/getting-started/
       icon: right-arrow
     - text: Service Discovery
-      link: /guides/service-discovery/
+      link: ./guides/service-discovery/
       variant: secondary
 ---
-
-import { Card, CardGrid } from "@astrojs/starlight/components";
 
 <div class="hero">
   <p>CaddyApp bündelt Installation, Routing, Discovery, Preset-Synchronisation und Betriebsaufgaben für lokale Umgebungen in einer macOS-App. Diese Dokumentation ist für Anwender gedacht und beschreibt die produktiven Arbeitsabläufe statt interner Projektstände.</p>
 </div>
 
-<CardGrid stagger>
-  <Card title="Schnell einsteigen" icon="rocket">
-    Starte mit Build, Erstkonfiguration und dem Aufbau des Hauptfensters.
-  </Card>
-  <Card title="Service Discovery" icon="search">
-    Verstehe, wie CaddyApp Laufzeitumgebungen erkennt und Routenvorschläge ableitet.
-  </Card>
-  <Card title="Multipass" icon="seti:vm">
-    Nutze VM-Services mit Hostschema, YAML-Import und optionaler systemd-Steuerung.
-  </Card>
-  <Card title="On-Demand-Apps" icon="server">
-    Starte Container oder Pods erst beim ersten Request und stoppe sie wieder nach Inaktivität.
-  </Card>
-</CardGrid>
+<div class="quick-grid">
+  <a class="quick-card" href="./guides/getting-started/">
+    <strong>Schnell einsteigen</strong>
+    <p>Starte mit Build, Erstkonfiguration und dem Aufbau des Hauptfensters.</p>
+  </a>
+  <a class="quick-card" href="./guides/service-discovery/">
+    <strong>Service Discovery</strong>
+    <p>Verstehe, wie CaddyApp Laufzeitumgebungen erkennt und Routenvorschläge ableitet.</p>
+  </a>
+  <a class="quick-card" href="./guides/multipass/">
+    <strong>Multipass</strong>
+    <p>Nutze VM-Services mit Hostschema, YAML-Import und optionaler systemd-Steuerung.</p>
+  </a>
+  <a class="quick-card" href="./guides/on-demand-apps/">
+    <strong>On-Demand-Apps</strong>
+    <p>Starte Container oder Pods erst beim ersten Request und stoppe sie wieder nach Inaktivität.</p>
+  </a>
+</div>
 
 ## Was CaddyApp abdeckt
 

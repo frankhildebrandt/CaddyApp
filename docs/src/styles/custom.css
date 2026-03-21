@@ -48,7 +48,17 @@
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(31, 107, 83, 0.12);
   border-radius: 20px;
+  color: inherit;
+  display: block;
   padding: 1rem;
+  text-decoration: none;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.quick-card:hover {
+  border-color: rgba(31, 107, 83, 0.35);
+  box-shadow: 0 16px 30px rgba(24, 80, 62, 0.08);
+  transform: translateY(-2px);
 }
 
 [data-theme="dark"] .quick-card {
