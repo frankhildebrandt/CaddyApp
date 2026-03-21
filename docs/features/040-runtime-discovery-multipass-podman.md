@@ -51,6 +51,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - Multipass service routing prefers the currently discovered VM IP directly and uses the existing on-demand gateway port (`127.0.0.1:49215`) only as a fallback when the service endpoint is not reachable yet, so warm-up remains intact without keeping the app process in the steady-state hot path.
 - YAML import is intentionally minimal and expects a `services:` list with per-item fields like `name/service`, `port`, optional `scheme`, `systemd(_unit)`, and auto flags.
 - YAML import only runs `multipass exec` against VMs that are already in `running` state, so app startup does not implicitly start stopped VMs.
+- Runtime-discovery shell calls now use hard timeouts so unavailable or wedged `multipass`/`podman` CLIs degrade to "no targets found" instead of stalling app startup indefinitely.
 
 ## caddy-app.yaml Format
 
@@ -121,3 +122,4 @@ services:
 - 2026-03-03: Hardened Multipass HTTP port detection by switching to direct TCP probing (proxy-independent), so active ports like `8080` are detected reliably when `80` is closed.
 - 2026-03-03: Added VM-internal HTTP listener fallback (`ss`/`netstat` via `multipass exec`) to prevent false fallback to port `80` when host-side probes cannot reach guest services.
 - 2026-03-21: Multipass service routes now use the discovered VM IP as direct Caddy upstream when available and keep the in-app gateway only as fallback for cold starts/unreachable targets.
+- 2026-03-21: Added hard timeouts for startup/runtime discovery shell commands so hung `multipass` or `podman` calls no longer leave the app loading forever.

@@ -5,6 +5,8 @@ struct RuntimeDiscoveryService {
     private let shell = ShellCommandRunner()
     private let multipassHTTPPorts = [8080, 80, 8081, 3000, 8090]
     private let multipassHTTPSPorts = [443, 8443]
+    private let runtimeCommandTimeout: TimeInterval = 4
+    private let guestPortCommandTimeout: TimeInterval = 3
 
     func discoverTargets() -> [RuntimeTarget] {
         var targets: [RuntimeTarget] = []
@@ -17,7 +19,8 @@ struct RuntimeDiscoveryService {
         let listResult = shell.runShellWithBackoff(
             "multipass list --format json",
             key: "runtime-discovery.multipass.list",
-            label: "Multipass"
+            label: "Multipass",
+            timeout: runtimeCommandTimeout
         )
         guard listResult.isSuccess else { return [] }
 
@@ -40,7 +43,8 @@ struct RuntimeDiscoveryService {
         let listResult = shell.runShellWithBackoff(
             "podman ps --format json",
             key: "runtime-discovery.podman.ps",
-            label: "Podman"
+            label: "Podman",
+            timeout: runtimeCommandTimeout
         )
         guard listResult.isSuccess,
               let data = listResult.stdout.data(using: .utf8),
@@ -153,7 +157,8 @@ struct RuntimeDiscoveryService {
         let result = shell.runShellWithBackoff(
             command,
             key: "runtime-discovery.multipass.guest-ports.\(vmName.lowercased())",
-            label: "Multipass"
+            label: "Multipass",
+            timeout: guestPortCommandTimeout
         )
         guard result.isSuccess else { return nil }
 

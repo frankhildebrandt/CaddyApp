@@ -29,7 +29,7 @@ struct CommandResult: Sendable {
 
 struct ShellCommandRunner: Sendable {
     @discardableResult
-    func run(_ launchPath: String, arguments: [String] = []) -> CommandResult {
+    func run(_ launchPath: String, arguments: [String] = [], timeout: TimeInterval? = nil) -> CommandResult {
         let renderedCommand = ([launchPath] + arguments.map(shellEscape)).joined(separator: " ")
 
         let process = Process()
@@ -43,14 +43,22 @@ struct ShellCommandRunner: Sendable {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             AppLogService.logError("CLI spawn failed: \(renderedCommand) :: \(error.localizedDescription)")
             return CommandResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
         }
 
+        let didTimeout = waitForExit(of: process, timeout: timeout)
+
         let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+
+        if didTimeout {
+            let timeoutNote = "Command timed out after \(formattedTimeout(timeout))s"
+            let mergedStderr = stderr.isEmpty ? timeoutNote : "\(stderr)\n\(timeoutNote)"
+            AppLogService.logError("CLI timeout: \(renderedCommand)")
+            return CommandResult(exitCode: 124, stdout: stdout, stderr: mergedStderr)
+        }
 
         let result = CommandResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
         if !result.isSuccess {
@@ -64,17 +72,18 @@ struct ShellCommandRunner: Sendable {
         return result
     }
 
-    func runShell(_ command: String) -> CommandResult {
+    func runShell(_ command: String, timeout: TimeInterval? = nil) -> CommandResult {
         let managedBin = AppPaths.managedBinDirectory.path.replacingOccurrences(of: "'", with: "'\\''")
         let wrappedCommand = "export PATH='\(managedBin)':$PATH; \(command)"
-        return run("/bin/zsh", arguments: ["-lc", wrappedCommand])
+        return run("/bin/zsh", arguments: ["-lc", wrappedCommand], timeout: timeout)
     }
 
     func runWithBackoff(
         _ launchPath: String,
         arguments: [String] = [],
         key: String,
-        label: String
+        label: String,
+        timeout: TimeInterval? = nil
     ) -> CommandResult {
         let renderedCommand = ([launchPath] + arguments.map(shellEscape)).joined(separator: " ")
         return ShellCommandBackoffStore.shared.run(
@@ -82,17 +91,17 @@ struct ShellCommandRunner: Sendable {
             label: label,
             commandDescription: renderedCommand
         ) {
-            run(launchPath, arguments: arguments)
+            run(launchPath, arguments: arguments, timeout: timeout)
         }
     }
 
-    func runShellWithBackoff(_ command: String, key: String, label: String) -> CommandResult {
+    func runShellWithBackoff(_ command: String, key: String, label: String, timeout: TimeInterval? = nil) -> CommandResult {
         ShellCommandBackoffStore.shared.run(
             key: key,
             label: label,
             commandDescription: command
         ) {
-            runShell(command)
+            runShell(command, timeout: timeout)
         }
     }
 
@@ -110,5 +119,40 @@ struct ShellCommandRunner: Sendable {
 
     private func shellEscape(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private func waitForExit(of process: Process, timeout: TimeInterval?) -> Bool {
+        guard let timeout else {
+            process.waitUntilExit()
+            return false
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if Date() >= deadline {
+                process.terminate()
+                let forcedKillDeadline = Date().addingTimeInterval(1)
+                while process.isRunning, Date() < forcedKillDeadline {
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                }
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        process.waitUntilExit()
+        return false
+    }
+
+    private func formattedTimeout(_ timeout: TimeInterval?) -> String {
+        guard let timeout else { return "0" }
+        let rounded = (timeout * 10).rounded() / 10
+        if rounded.rounded(.down) == rounded {
+            return String(Int(rounded))
+        }
+        return String(rounded)
     }
 }

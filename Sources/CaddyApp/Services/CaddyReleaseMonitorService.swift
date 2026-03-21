@@ -1,6 +1,13 @@
 import Foundation
 
 struct CaddyReleaseMonitorService {
+    private var session: URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForResource = 5
+        return URLSession(configuration: configuration)
+    }
+
     func fetchLatestRelease() async -> CaddyReleaseInfo? {
         guard let url = URL(string: "https://api.github.com/repos/caddyserver/caddy/releases/latest") else {
             return nil
@@ -10,7 +17,7 @@ struct CaddyReleaseMonitorService {
         request.setValue("CaddyApp/0.1", forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return nil
             }
