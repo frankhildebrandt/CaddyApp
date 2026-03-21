@@ -4,6 +4,7 @@ struct CaddyConfigLifecycleService: @unchecked Sendable {
     private let shell = ShellCommandRunner()
     private let defaultAdminEndpoint = "localhost:2019"
     private let fileManager = FileManager.default
+    private static let runtimeStatusTimeout: TimeInterval = 2
 
     private struct ConfigFileBackup {
         let existed: Bool
@@ -11,7 +12,10 @@ struct CaddyConfigLifecycleService: @unchecked Sendable {
     }
 
     func runtimeStatus() -> CaddyRuntimeStatus {
-        let result = shell.runShell("curl -fsS http://\(defaultAdminEndpoint)/config/ >/dev/null 2>&1")
+        let result = shell.runShell(
+            "curl --connect-timeout 1 --max-time 2 -fsS http://\(defaultAdminEndpoint)/config/ >/dev/null 2>&1",
+            timeout: Self.runtimeStatusTimeout
+        )
         return CaddyRuntimeStatus(isRunning: result.isSuccess, adminEndpoint: defaultAdminEndpoint)
     }
 

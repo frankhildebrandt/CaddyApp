@@ -1,6 +1,8 @@
 import Foundation
 
 struct CaddyInstallationService: Sendable {
+    private static let startupCommandTimeout: TimeInterval = 3
+
     func updateViaHomebrewAsync() async -> CaddyUpdateOperationResult {
         let service = self
         return await Task.detached(priority: .userInitiated) {
@@ -12,7 +14,7 @@ struct CaddyInstallationService: Sendable {
     private let shell = ShellCommandRunner()
 
     func loadStatus() -> CaddyInstallStatus {
-        let whichResult = shell.runShell("command -v caddy")
+        let whichResult = shell.runShell("command -v caddy", timeout: Self.startupCommandTimeout)
         guard whichResult.isSuccess else {
             return CaddyInstallStatus(
                 isInstalled: false,
@@ -23,7 +25,7 @@ struct CaddyInstallationService: Sendable {
         }
 
         let path = whichResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        let versionResult = shell.runShell("caddy version")
+        let versionResult = shell.runShell("caddy version", timeout: Self.startupCommandTimeout)
         let version = versionResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return CaddyInstallStatus(

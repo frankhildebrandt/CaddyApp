@@ -7,6 +7,7 @@ final class DashboardViewModel: ObservableObject {
     private static let logLiveWatchIntervalNanoseconds: UInt64 = 1_000_000_000
     private static let draftAutoSaveDebounceNanoseconds: UInt64 = 700_000_000
     private static let repositorySyncInitialDelayNanoseconds: UInt64 = 5_000_000_000
+    private static let refreshTimeoutNanoseconds: UInt64 = 20_000_000_000
     private static let runtimePollingJobID = "dashboard.runtime-polling"
     private static let logLiveWatchJobID = "dashboard.log-live-watch"
     private static let draftAutosaveJobID = "dashboard.draft-autosave"
@@ -64,6 +65,7 @@ final class DashboardViewModel: ObservableObject {
     private var lastGeneratedConfigFingerprint: Int?
     private var refreshPendingAfterRuntimeChange = false
     private var hasLoadedRepositoryPresets = false
+    private var activeRefreshToken: UUID?
 
     init(
         dashboardService: DashboardService,
@@ -120,15 +122,28 @@ final class DashboardViewModel: ObservableObject {
         }
         isLoading = true
         lastError = nil
+        let refreshToken = UUID()
+        activeRefreshToken = refreshToken
 
         Task { [weak self] in
             guard let self else { return }
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Self.refreshTimeoutNanoseconds)
+                guard let self else { return }
+                guard self.activeRefreshToken == refreshToken, self.isLoading else { return }
+                self.isLoading = false
+                self.lastError = "Snapshot-Ladevorgang dauert zu lange. Bitte erneut aktualisieren."
+                AppLogService.logError("Dashboard snapshot refresh timed out after \(Self.refreshTimeoutNanoseconds / 1_000_000_000)s")
+            }
             self.refreshLogs()
             let previousSnapshot = self.snapshot
             let wasInitialLoad = !self.hasLoaded
             let snapshot = await dashboardService.loadSnapshot()
+            guard self.activeRefreshToken == refreshToken else { return }
+            self.activeRefreshToken = nil
             self.snapshot = snapshot
             self.isLoading = false
+            self.lastError = nil
             self.hasLoaded = true
             self.startRuntimePollingIfNeeded()
             self.startRepositoryAutoSyncIfNeeded()

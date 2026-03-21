@@ -5,6 +5,9 @@ actor OnDemandAppsService {
     static let shared = OnDemandAppsService()
     static let gatewayPort: UInt16 = 49215
     private static let maintenanceJobID = "on-demand.maintenance"
+    private static let runtimeStatusCommandTimeout: TimeInterval = 3
+    private static let multipassInfoCommandTimeout: TimeInterval = 3
+    private static let multipassSystemdStatusTimeout: TimeInterval = 3
 
     private struct AppState {
         var phase: OnDemandAppPhase = .stopped
@@ -1127,7 +1130,8 @@ actor OnDemandAppsService {
         let result = runner.runShellWithBackoff(
             command,
             key: "on-demand.multipass.systemd.\(service.vmName.lowercased()).\(service.systemdUnit.lowercased())",
-            label: "Multipass"
+            label: "Multipass",
+            timeout: Self.multipassSystemdStatusTimeout
         )
         let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty {
@@ -1423,7 +1427,8 @@ actor OnDemandAppsService {
         return runner.runShellWithBackoff(
             command,
             key: "on-demand.runtime-status.\(app.runtime.rawValue).\(unitKind).\(unitKey)",
-            label: app.runtime.label
+            label: app.runtime.label,
+            timeout: Self.runtimeStatusCommandTimeout
         )
     }
 
@@ -1432,7 +1437,8 @@ actor OnDemandAppsService {
         let result = runner.runShellWithBackoff(
             command,
             key: "on-demand.multipass.info.\(vmName.lowercased())",
-            label: "Multipass"
+            label: "Multipass",
+            timeout: Self.multipassInfoCommandTimeout
         )
         guard result.isSuccess,
               let data = result.stdout.data(using: .utf8),
