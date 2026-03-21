@@ -35,6 +35,8 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 - YAML-basierte Web-Repositories fuer On-Demand-App-Presets
 - Gemeinsamer interner Scheduler fuer Polling-, Debounce- und Maintenance-Jobs
 - Asynchrone Command-Ausfuehrung fuer UI-relevante Aktionen (Caddy/TLS/Update/Logs)
+- Monitoring-Logs mit Live-Watch und begrenztem sichtbarem Zeilenfenster fuer bessere UI-Performance
+- Exponentielles Retry-Backoff fuer wiederkehrende Runtime-Shell-Checks (max. 30s) inkl. Dashboard-Hinweisen bei Podman-/Docker-/Multipass-Problemen
 - Skeleton-Loading fuer Hauptzustand und Inline-Loading-Indikatoren statt Spinner-Fokus
 
 ## Voraussetzungen

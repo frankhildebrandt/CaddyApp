@@ -17,6 +17,8 @@ The focus is localhost reverse-proxy workflows, automated Caddy runtime manageme
 - Shared internal scheduler (`InternalScheduler`) for recurring and debounced jobs.
 - Async wrappers for command-heavy services to keep UI interaction responsive.
 - Dashboard runtime polling interval tuned to reduce idle CPU pressure.
+- Repeated runtime shell status checks now use exponential retry backoff up to 30 seconds after failures, reducing useless polling pressure when Podman, Docker, or Multipass are unreachable.
+- Monitoring log view now runs in a bounded live-watch mode and renders only a capped line window to avoid large-text UI slowdowns.
 - Loading UX standardized with skeleton placeholders and inline skeleton activity states.
 - Global app menu plus native macOS settings window (`Apple-,`) added.
 - Main window now uses `AppShellView` with a native `NavigationSplitView`, dedicated shell components (`AppHeaderView`, `AppSidebarView`), and per-feature detail views.

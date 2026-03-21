@@ -4,11 +4,14 @@ import Foundation
 @MainActor
 final class DashboardViewModel: ObservableObject {
     private static let runtimePollIntervalNanoseconds: UInt64 = 8_000_000_000
+    private static let logLiveWatchIntervalNanoseconds: UInt64 = 1_000_000_000
     private static let draftAutoSaveDebounceNanoseconds: UInt64 = 700_000_000
     private static let repositorySyncInitialDelayNanoseconds: UInt64 = 5_000_000_000
     private static let runtimePollingJobID = "dashboard.runtime-polling"
+    private static let logLiveWatchJobID = "dashboard.log-live-watch"
     private static let draftAutosaveJobID = "dashboard.draft-autosave"
     private static let repositoryAutoSyncJobID = "dashboard.repository-auto-sync"
+    static let maxVisibleLogLines = 800
 
     @Published private(set) var snapshot: DashboardSnapshot?
     @Published private(set) var isLoading = false
@@ -32,6 +35,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var appLogText: String = ""
     @Published private(set) var isRefreshingLogs = false
     @Published var logFilterQuery: String = ""
+    @Published var isLogLiveWatchEnabled: Bool = true
     @Published private(set) var isChangingOnDemandAppRuntime = false
     @Published private(set) var lastOnDemandAppControlResult: OnDemandAppControlResult?
     @Published private(set) var isChangingMultipassServiceRuntime = false
@@ -501,6 +505,15 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    func setLogLiveWatchEnabled(_ enabled: Bool) {
+        isLogLiveWatchEnabled = enabled
+        if enabled {
+            startLogLiveWatchIfNeeded()
+        } else {
+            stopLogLiveWatch()
+        }
+    }
+
     func setOnDemandAppRunning(appID: UUID, shouldRun: Bool) {
         guard !isChangingOnDemandAppRuntime else { return }
         isChangingOnDemandAppRuntime = true
@@ -870,6 +883,32 @@ final class DashboardViewModel: ObservableObject {
                 guard let self else { return }
                 await self.runBackgroundRuntimePollTick()
             }
+        }
+    }
+
+    private func startLogLiveWatchIfNeeded() {
+        Task { [weak self] in
+            guard let self else { return }
+            guard isLogLiveWatchEnabled else {
+                await scheduler.cancel(id: Self.logLiveWatchJobID)
+                return
+            }
+            await scheduler.scheduleRepeating(
+                id: Self.logLiveWatchJobID,
+                intervalNanoseconds: Self.logLiveWatchIntervalNanoseconds,
+                policy: .keepExisting
+            ) { [weak self] in
+                await MainActor.run {
+                    self?.refreshLogs()
+                }
+            }
+        }
+    }
+
+    func stopLogLiveWatch() {
+        Task { [weak self] in
+            guard let self else { return }
+            await scheduler.cancel(id: Self.logLiveWatchJobID)
         }
     }
 

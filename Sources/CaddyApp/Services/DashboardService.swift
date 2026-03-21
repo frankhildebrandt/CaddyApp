@@ -44,12 +44,14 @@ actor DashboardService {
             enableTraefikMeAliases: appConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
+        let runtimeCommandIssues = ShellCommandBackoffStore.shared.dashboardIssues()
 
         let warnings = DashboardWarningsBuilder.build(
             caddyInstall: caddyInstall,
             tlsStatus: tlsStatus,
             runtimeTargets: runtimeTargets,
-            autoSetupReport: autoSetupReport
+            autoSetupReport: autoSetupReport,
+            runtimeCommandIssues: runtimeCommandIssues
         )
 
         return DashboardSnapshot(
@@ -87,11 +89,13 @@ actor DashboardService {
             enableTraefikMeAliases: appConfig.enableTraefikMeAliases
         )
         let caddyRuntimeStatus = configLifecycleService.runtimeStatus()
+        let runtimeCommandIssues = ShellCommandBackoffStore.shared.dashboardIssues()
         let warnings = DashboardWarningsBuilder.build(
             caddyInstall: snapshot.caddyInstall,
             tlsStatus: snapshot.tlsStatus,
             runtimeTargets: runtimeTargets,
-            autoSetupReport: snapshot.autoSetupReport
+            autoSetupReport: snapshot.autoSetupReport,
+            runtimeCommandIssues: runtimeCommandIssues
         )
 
         return DashboardSnapshot(

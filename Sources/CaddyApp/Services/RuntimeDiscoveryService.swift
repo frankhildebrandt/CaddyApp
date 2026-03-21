@@ -14,7 +14,11 @@ struct RuntimeDiscoveryService {
     }
 
     private func discoverMultipass() -> [RuntimeTarget] {
-        let listResult = shell.runShell("multipass list --format json")
+        let listResult = shell.runShellWithBackoff(
+            "multipass list --format json",
+            key: "runtime-discovery.multipass.list",
+            label: "Multipass"
+        )
         guard listResult.isSuccess else { return [] }
 
         guard let data = listResult.stdout.data(using: .utf8),
@@ -33,7 +37,11 @@ struct RuntimeDiscoveryService {
     }
 
     private func discoverPodman() -> [RuntimeTarget] {
-        let listResult = shell.runShell("podman ps --format json")
+        let listResult = shell.runShellWithBackoff(
+            "podman ps --format json",
+            key: "runtime-discovery.podman.ps",
+            label: "Podman"
+        )
         guard listResult.isSuccess,
               let data = listResult.stdout.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -142,7 +150,11 @@ struct RuntimeDiscoveryService {
     private func firstGuestListeningHTTPPort(vmName: String) -> Int? {
         let escapedVMName = shellEscape(vmName)
         let command = "multipass exec \(escapedVMName) -- sh -lc 'ss -H -ltn 2>/dev/null || netstat -ltn 2>/dev/null'"
-        let result = shell.runShell(command)
+        let result = shell.runShellWithBackoff(
+            command,
+            key: "runtime-discovery.multipass.guest-ports.\(vmName.lowercased())",
+            label: "Multipass"
+        )
         guard result.isSuccess else { return nil }
 
         let output = result.stdout

@@ -186,11 +186,47 @@ final class ModelRefactorTests: XCTestCase {
                 installHint: ""
             ),
             runtimeTargets: [],
-            autoSetupReport: AutoSetupReport(attempted: false, operations: [])
+            autoSetupReport: AutoSetupReport(attempted: false, operations: []),
+            runtimeCommandIssues: []
         )
 
         XCTAssertTrue(warnings.contains { $0.contains("Caddy is not installed") })
         XCTAssertTrue(warnings.contains { $0.contains("No Multipass or Podman targets discovered") })
+    }
+
+    func testDashboardWarningsBuilderIncludesRuntimeCommandIssues() {
+        let warnings = DashboardWarningsBuilder.build(
+            caddyInstall: CaddyInstallStatus(isInstalled: true, version: "2.8.4", binaryPath: "/opt/homebrew/bin/caddy", suggestedInstallCommand: "brew install caddy"),
+            tlsStatus: TLSStatus(
+                localCARootPath: "",
+                rootCertificatePresent: true,
+                systemKeychainTrustStatus: .trusted,
+                systemKeychainTrustDetails: "",
+                caddyTrustCommand: "",
+                installHint: ""
+            ),
+            runtimeTargets: [],
+            autoSetupReport: AutoSetupReport(attempted: false, operations: []),
+            runtimeCommandIssues: [
+                ShellCommandIssue(
+                    label: "Podman",
+                    failureCount: 3,
+                    nextRetryAt: Date().addingTimeInterval(8),
+                    message: "Cannot connect to Podman socket"
+                )
+            ]
+        )
+
+        XCTAssertTrue(warnings.contains { $0.contains("No contact to Podman") })
+        XCTAssertTrue(warnings.contains { $0.contains("Cannot connect to Podman socket") })
+    }
+
+    func testShellCommandBackoffCapsAtThirtySeconds() {
+        XCTAssertEqual(ShellCommandBackoffStore.retryDelaySeconds(forFailureCount: 1), 1)
+        XCTAssertEqual(ShellCommandBackoffStore.retryDelaySeconds(forFailureCount: 2), 2)
+        XCTAssertEqual(ShellCommandBackoffStore.retryDelaySeconds(forFailureCount: 5), 16)
+        XCTAssertEqual(ShellCommandBackoffStore.retryDelaySeconds(forFailureCount: 6), 30)
+        XCTAssertEqual(ShellCommandBackoffStore.retryDelaySeconds(forFailureCount: 9), 30)
     }
 
     func testOnDemandAppPresetIconFallback() {

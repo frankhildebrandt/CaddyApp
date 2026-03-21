@@ -4,6 +4,25 @@ struct CommandResult: Sendable {
     let exitCode: Int32
     let stdout: String
     let stderr: String
+    let didUseBackoff: Bool
+    let nextRetryAt: Date?
+    let consecutiveFailureCount: Int
+
+    init(
+        exitCode: Int32,
+        stdout: String,
+        stderr: String,
+        didUseBackoff: Bool = false,
+        nextRetryAt: Date? = nil,
+        consecutiveFailureCount: Int = 0
+    ) {
+        self.exitCode = exitCode
+        self.stdout = stdout
+        self.stderr = stderr
+        self.didUseBackoff = didUseBackoff
+        self.nextRetryAt = nextRetryAt
+        self.consecutiveFailureCount = consecutiveFailureCount
+    }
 
     var isSuccess: Bool { exitCode == 0 }
 }
@@ -49,6 +68,32 @@ struct ShellCommandRunner: Sendable {
         let managedBin = AppPaths.managedBinDirectory.path.replacingOccurrences(of: "'", with: "'\\''")
         let wrappedCommand = "export PATH='\(managedBin)':$PATH; \(command)"
         return run("/bin/zsh", arguments: ["-lc", wrappedCommand])
+    }
+
+    func runWithBackoff(
+        _ launchPath: String,
+        arguments: [String] = [],
+        key: String,
+        label: String
+    ) -> CommandResult {
+        let renderedCommand = ([launchPath] + arguments.map(shellEscape)).joined(separator: " ")
+        return ShellCommandBackoffStore.shared.run(
+            key: key,
+            label: label,
+            commandDescription: renderedCommand
+        ) {
+            run(launchPath, arguments: arguments)
+        }
+    }
+
+    func runShellWithBackoff(_ command: String, key: String, label: String) -> CommandResult {
+        ShellCommandBackoffStore.shared.run(
+            key: key,
+            label: label,
+            commandDescription: command
+        ) {
+            runShell(command)
+        }
     }
 
     func runAsync(_ launchPath: String, arguments: [String] = []) async -> CommandResult {

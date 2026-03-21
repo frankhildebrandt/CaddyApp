@@ -1075,23 +1075,13 @@ actor OnDemandAppsService {
     }
 
     private func vmIsRunning(_ vmName: String) -> Bool {
-        let result = runner.runShell("multipass info \(shellEscapeArgument(vmName)) --format json")
-        guard result.isSuccess,
-              let data = result.stdout.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let info = json["info"] as? [String: Any],
-              let vm = info[vmName] as? [String: Any] else { return false }
+        guard let vm = multipassInfo(vmName) else { return false }
         let state = (vm["state"] as? String) ?? ""
         return state.lowercased() == "running"
     }
 
     private func multipassVMIPv4Address(_ vmName: String) -> String? {
-        let result = runner.runShell("multipass info \(shellEscapeArgument(vmName)) --format json")
-        guard result.isSuccess,
-              let data = result.stdout.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let info = json["info"] as? [String: Any],
-              let vm = info[vmName] as? [String: Any],
+        guard let vm = multipassInfo(vmName),
               let ipv4 = vm["ipv4"] as? [String],
               let first = ipv4.first else { return nil }
         return first
@@ -1101,7 +1091,11 @@ actor OnDemandAppsService {
         guard !service.systemdUnit.isEmpty else { return "n/a" }
         guard vmIsRunning(service.vmName) else { return "vm-stopped" }
         let command = "multipass exec \(shellEscapeArgument(service.vmName)) -- systemctl is-active \(shellEscapeArgument(service.systemdUnit))"
-        let result = runner.runShell(command)
+        let result = runner.runShellWithBackoff(
+            command,
+            key: "on-demand.multipass.systemd.\(service.vmName.lowercased()).\(service.systemdUnit.lowercased())",
+            label: "Multipass"
+        )
         let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty {
             return result.isSuccess ? "active" : "unknown"
@@ -1128,7 +1122,12 @@ actor OnDemandAppsService {
     }
 
     private func syncMultipassConfigFromYAML(base: AppConfig) -> AppConfig? {
-        guard let listData = runner.runShell("multipass list --format json").stdout.data(using: .utf8),
+        let listResult = runner.runShellWithBackoff(
+            "multipass list --format json",
+            key: "on-demand.multipass.yaml.list",
+            label: "Multipass"
+        )
+        guard let listData = listResult.stdout.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: listData) as? [String: Any],
               let list = json["list"] as? [[String: Any]] else {
             return nil
@@ -1142,7 +1141,11 @@ actor OnDemandAppsService {
             guard let vmName = item["name"] as? String else { continue }
             let state = (item["state"] as? String ?? "").lowercased()
             guard state == "running" else { continue }
-            let result = runner.runShell("multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'")
+            let result = runner.runShellWithBackoff(
+                "multipass exec \(shellEscapeArgument(vmName)) -- sh -lc 'cat /etc/caddy-app.yaml 2>/dev/null'",
+                key: "on-demand.multipass.yaml.file.\(vmName.lowercased())",
+                label: "Multipass"
+            )
             guard result.isSuccess else { continue }
             let parsed = parseMultipassYAML(result.stdout, vmName: vmName)
             for draft in parsed {
@@ -1424,12 +1427,12 @@ actor OnDemandAppsService {
     private func isRunning(_ app: OnDemandAppDraft) -> RunningCheckResult {
         switch app.unitKind {
         case .container:
-            let result = runRuntime(app, arguments: ["inspect", "-f", "{{.State.Running}}", app.unitName])
+            let result = runRuntimeStatus(app, arguments: ["inspect", "-f", "{{.State.Running}}", app.unitName])
             guard result.isSuccess else { return RunningCheckResult(isRunning: false, message: result.stderr) }
             let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return RunningCheckResult(isRunning: text == "true", message: text)
         case .pod:
-            let result = runRuntime(app, arguments: ["pod", "inspect", "-f", "{{.State}}", app.unitName])
+            let result = runRuntimeStatus(app, arguments: ["pod", "inspect", "-f", "{{.State}}", app.unitName])
             guard result.isSuccess else { return RunningCheckResult(isRunning: false, message: result.stderr) }
             let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return RunningCheckResult(isRunning: text.contains("running"), message: text)
@@ -1438,6 +1441,37 @@ actor OnDemandAppsService {
 
     private func runRuntime(_ app: OnDemandAppDraft, arguments: [String]) -> CommandResult {
         runner.runShell(([app.runtime.rawValue] + arguments.map(shellEscapeArgument)).joined(separator: " "))
+    }
+
+    private func runRuntimeStatus(_ app: OnDemandAppDraft, arguments: [String]) -> CommandResult {
+        let command = ([app.runtime.rawValue] + arguments.map(shellEscapeArgument)).joined(separator: " ")
+        let unitKey = app.unitName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        let unitKind = app.unitKind == .container ? "container" : "pod"
+        return runner.runShellWithBackoff(
+            command,
+            key: "on-demand.runtime-status.\(app.runtime.rawValue).\(unitKind).\(unitKey)",
+            label: app.runtime.label
+        )
+    }
+
+    private func multipassInfo(_ vmName: String) -> [String: Any]? {
+        let command = "multipass info \(shellEscapeArgument(vmName)) --format json"
+        let result = runner.runShellWithBackoff(
+            command,
+            key: "on-demand.multipass.info.\(vmName.lowercased())",
+            label: "Multipass"
+        )
+        guard result.isSuccess,
+              let data = result.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let info = json["info"] as? [String: Any],
+              let vm = info[vmName] as? [String: Any] else {
+            return nil
+        }
+        return vm
     }
 
     private func normalizedRunSteps(for app: OnDemandAppDraft) -> [String] {
