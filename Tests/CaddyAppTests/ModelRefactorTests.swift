@@ -87,7 +87,7 @@ final class ModelRefactorTests: XCTestCase {
     func testProxyRouteFactoryUsesDirectMultipassIPWhenAvailable() {
         let routes = ProxyRouteFactory.build(
             runtimeTargets: [
-                RuntimeTarget(name: "vm", source: .multipass, address: "10.0.0.5", status: "running")
+                RuntimeTarget(name: "vm", source: .multipass, address: "10.0.0.5:8080", status: "running")
             ],
             customRoutes: [],
             onDemandApps: [],
@@ -105,6 +105,28 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertEqual(routes.count, 4)
         XCTAssertTrue(routes.contains { $0.host == "svc.vm.mp.localhost" && $0.upstream == "10.0.0.5:8080" && $0.onDemandGatewayEndpoint == "127.0.0.1:49215" })
         XCTAssertTrue(routes.contains { $0.host == "*.svc.vm.mp.localhost" && $0.upstream == "10.0.0.5:8080" && $0.onDemandGatewayEndpoint == "127.0.0.1:49215" })
+    }
+
+    func testProxyRouteFactoryUsesDirectMultipassIPWhenRuntimeTargetHasScheme() {
+        let routes = ProxyRouteFactory.build(
+            runtimeTargets: [
+                RuntimeTarget(name: "vm", source: .multipass, address: "https://10.0.0.5:8443", status: "running")
+            ],
+            customRoutes: [],
+            onDemandApps: [],
+            multipassServices: [
+                MultipassServiceDraft(
+                    vmName: "vm",
+                    serviceName: "svc",
+                    host: "svc.vm.mp.localhost",
+                    targetPort: 5556,
+                    scheme: .http
+                )
+            ],
+            gatewayPort: 49215
+        )
+
+        XCTAssertTrue(routes.contains { $0.host == "svc.vm.mp.localhost" && $0.upstream == "10.0.0.5:5556" })
     }
 
     func testOnDemandProxyRouteUsesDirectUpstreamAndGatewayFallback() {

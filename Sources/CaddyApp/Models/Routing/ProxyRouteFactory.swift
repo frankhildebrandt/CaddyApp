@@ -47,7 +47,8 @@ enum ProxyRouteFactory {
         let multipassIPsByVM = Dictionary(
             uniqueKeysWithValues: runtimeTargets.compactMap { target -> (String, String)? in
                 guard target.source == .multipass, target.address != "(no ip)" else { return nil }
-                return (target.name.lowercased(), target.address)
+                guard let host = upstreamHost(from: target.address) else { return nil }
+                return (target.name.lowercased(), host)
             }
         )
 
@@ -73,5 +74,19 @@ enum ProxyRouteFactory {
             )
             return [direct, wildcard]
         }
+    }
+
+    private static func upstreamHost(from address: String) -> String? {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.contains("://"), let url = URL(string: trimmed), let host = url.host, !host.isEmpty {
+            return host
+        }
+
+        return trimmed.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map(String.init)
+            .flatMap { $0.isEmpty ? nil : $0 }
     }
 }
