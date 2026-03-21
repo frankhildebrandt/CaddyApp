@@ -4,7 +4,7 @@
 
 - State: Done
 - Owner: TBD
-- Last Updated: 2026-03-04
+- Last Updated: 2026-03-21
 
 ## Goal
 
@@ -40,7 +40,7 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - Podman and Docker command execution should share a normalized runtime adapter (`start`, `stop`, `status`, `logs`).
 - Default app templates should include container image, exposed port, suggested host/path, and persistence volume hints.
 - Ephe template source: `https://github.com/unvalley/ephe`.
-- Implementation uses a local HTTP gateway (`127.0.0.1:49215`) that Caddy proxies to for on-demand hosts.
+- Caddy uses the local prepare gateway (`127.0.0.1:49215`) only as a lightweight start/readiness gate; normal HTTP/WebSocket traffic is then proxied directly to the app target.
 - Runtime tab supports manual start/stop controls in addition to URL-triggered activation.
 - Logging tab records start/stop and warm-up events; concrete CLI calls are only logged on command failures.
 - On-demand app cards include per-app observability/ops sub-tabs (Config, Host-Log, Container/Pod-Log, Shell, Eventlog).
@@ -68,3 +68,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-02-27: Reworked pod deployment execution to use explicit sequential `runSteps` (instead of single `&&` shell chains), including tolerant handling of "already exists" conflicts and controlled fallback to existing unit start.
 - 2026-03-02: Reduced CLI logging noise: command lines are now only written when spawn/exit errors occur.
 - 2026-03-04: Added authentik preset (local catalog + YAML repository) based on upstream docker-compose translated to a Podman pod (`server`, `worker`, `postgres`, `redis`).
+- 2026-03-21: Reworked on-demand app routing so Caddy now calls the in-app gateway only for start/readiness checks (`forward_auth`), while normal HTTP/WebSocket traffic goes directly to the target backend instead of being proxied through the app process.

@@ -56,7 +56,19 @@ struct CaddyConfigService {
             )
             lines.append("\(siteHosts.joined(separator: ", ")) {")
             lines.append("    tls internal")
-            lines.append("    reverse_proxy \(route.upstream)")
+            if let prepareEndpoint = route.onDemandPrepareEndpoint {
+                lines.append("    route {")
+                lines.append("        forward_auth \(prepareEndpoint) {")
+                lines.append("            uri \(OnDemandAppsService.prepareEndpoint)")
+                lines.append("            header_up X-CaddyApp-Original-Host {host}")
+                lines.append("            header_up X-CaddyApp-Original-Method {method}")
+                lines.append("            header_up X-CaddyApp-Original-Uri {uri}")
+                lines.append("        }")
+                lines.append("        reverse_proxy \(route.upstream)")
+                lines.append("    }")
+            } else {
+                lines.append("    reverse_proxy \(route.upstream)")
+            }
             lines.append("}")
             lines.append("")
         }

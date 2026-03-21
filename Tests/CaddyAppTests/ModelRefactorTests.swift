@@ -84,6 +84,49 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertTrue(routes.contains { $0.host == "*.svc.vm.mp.localhost" })
     }
 
+    func testOnDemandProxyRouteUsesDirectUpstreamAndPrepareEndpoint() {
+        let routes = ProxyRouteFactory.build(
+            runtimeTargets: [],
+            customRoutes: [],
+            onDemandApps: [
+                OnDemandAppDraft(
+                    name: "Grafana",
+                    unitName: "grafana",
+                    host: "grafana.localhost",
+                    targetHost: "127.0.0.1",
+                    targetPort: 3000,
+                    runArguments: "run"
+                )
+            ],
+            multipassServices: [],
+            gatewayPort: 49215
+        )
+
+        XCTAssertEqual(routes.count, 1)
+        XCTAssertEqual(routes[0].upstream, "127.0.0.1:3000")
+        XCTAssertEqual(routes[0].onDemandPrepareEndpoint, "127.0.0.1:49215")
+    }
+
+    func testCaddyConfigWrapsOnDemandRoutesWithForwardAuthPrepareGate() {
+        let preview = CaddyConfigService().preview(
+            for: [
+                ProxyRoute(
+                    host: "grafana.localhost",
+                    upstream: "127.0.0.1:3000",
+                    source: .onDemand,
+                    enabled: true,
+                    onDemandPrepareEndpoint: "127.0.0.1:49215"
+                )
+            ],
+            additionalCaddyfileConfig: "",
+            enableTraefikMeAliases: false
+        )
+
+        XCTAssertTrue(preview.generatedCaddyfile.contains("forward_auth 127.0.0.1:49215"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("uri /__caddyapp/prepare"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("reverse_proxy 127.0.0.1:3000"))
+    }
+
     func testDashboardWarningsBuilderIncludesInstallWarning() {
         let warnings = DashboardWarningsBuilder.build(
             caddyInstall: CaddyInstallStatus(isInstalled: false, version: nil, binaryPath: nil, suggestedInstallCommand: "brew install caddy"),

@@ -4,6 +4,7 @@ import Network
 actor OnDemandAppsService {
     static let shared = OnDemandAppsService()
     static let gatewayPort: UInt16 = 49215
+    static let prepareEndpoint = "/__caddyapp/prepare"
     private static let maintenanceJobID = "on-demand.maintenance"
 
     private struct AppState {
@@ -325,6 +326,9 @@ actor OnDemandAppsService {
     }
 
     func handleProxyRequest(_ request: HTTPGatewayRequest) async -> HTTPGatewayResponse {
+        if request.path == Self.prepareEndpoint {
+            return await handlePrepareRequest(request)
+        }
         if request.headers.contains(where: { $0.0.caseInsensitiveCompare("Transfer-Encoding") == .orderedSame && $0.1.lowercased().contains("chunked") }) {
             return .text(status: 501, body: "Chunked request bodies are not supported by the on-demand gateway yet")
         }
@@ -335,6 +339,38 @@ actor OnDemandAppsService {
             return response
         case let .ready(backend):
             return await proxy(request, to: backend.upstream)
+        }
+    }
+
+    private func handlePrepareRequest(_ request: HTTPGatewayRequest) async -> HTTPGatewayResponse {
+        let originalHost = request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Host") == .orderedSame }?.1
+        guard let originalHost, !originalHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .text(status: 400, body: "Missing X-CaddyApp-Original-Host header")
+        }
+
+        let forwardedRequest = HTTPGatewayRequest(
+            method: request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Method") == .orderedSame }?.1 ?? request.method,
+            target: request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Uri") == .orderedSame }?.1 ?? "/",
+            version: request.version,
+            headers: [("Host", originalHost)],
+            body: Data()
+        )
+
+        switch await prepareAppForHTTP(forwardedRequest) {
+        case .ready:
+            return HTTPGatewayResponse(
+                statusCode: 204,
+                headers: [
+                    ("Content-Length", "0"),
+                    ("Connection", "close"),
+                    ("Cache-Control", "no-store")
+                ],
+                body: Data()
+            )
+        case let .waiting(response):
+            return response
+        case let .failure(response):
+            return response
         }
     }
 
@@ -524,21 +560,12 @@ actor OnDemandAppsService {
             var state = states[appID] ?? AppState()
             let runningCheck = isRunning(app)
             if runningCheck.isRunning && state.phase != .starting {
-                let warmup = await waitForHealth(app)
-                if warmup.succeeded {
-                    state.lastAccessAt = Date()
-                    state.lastActionAt = Date()
-                    state.phase = .running
-                    state.lastError = nil
-                    states[appID] = state
-                    return .ready(PreparedBackend(name: app.name, upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort)))
-                }
-                state.phase = .starting
-                state.lastError = warmup.message
+                state.lastAccessAt = Date()
                 state.lastActionAt = Date()
+                state.phase = .running
+                state.lastError = nil
                 states[appID] = state
-                queueBackgroundStartIfNeeded(appID: appID)
-                return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase))
+                return .ready(PreparedBackend(name: app.name, upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort)))
             }
 
             queueBackgroundStartIfNeeded(appID: appID)
@@ -546,7 +573,7 @@ actor OnDemandAppsService {
             state.phase = .starting
             state.lastActionAt = Date()
             states[appID] = state
-            return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase))
+            return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase, statusCode: 503))
         case let .multipass(serviceID, service):
             var state = multipassStates[serviceID] ?? AppState()
             if isMultipassServiceReady(serviceID: serviceID, service: service), state.phase != .starting {
@@ -576,7 +603,8 @@ actor OnDemandAppsService {
                     runtime: "Multipass",
                     unit: service.systemdUnit.isEmpty ? "Service" : "systemd: \(service.systemdUnit)",
                     target: "\(service.vmName):\(service.targetPort)",
-                    phase: state.phase
+                    phase: state.phase,
+                    statusCode: 503
                 )
             )
         }
@@ -604,7 +632,8 @@ actor OnDemandAppsService {
         runtime: String,
         unit: String,
         target: String,
-        phase: OnDemandAppPhase
+        phase: OnDemandAppPhase,
+        statusCode: Int = 200
     ) -> HTTPGatewayResponse {
         let safeName = htmlEscaped(name.isEmpty ? "App" : name)
         let safeHost = htmlEscaped(host)
@@ -767,7 +796,7 @@ actor OnDemandAppsService {
         """
 
         return .html(
-            status: 200,
+            status: statusCode,
             body: html,
             extraHeaders: [("Cache-Control", "no-store"), ("Refresh", "1")]
         )
@@ -1481,6 +1510,10 @@ struct HTTPGatewayRequest {
         let upgrade = headers.first { $0.0.caseInsensitiveCompare("Upgrade") == .orderedSame }?.1.lowercased()
         let connection = headers.first { $0.0.caseInsensitiveCompare("Connection") == .orderedSame }?.1.lowercased() ?? ""
         return upgrade == "websocket" && connection.contains("upgrade")
+    }
+
+    var path: String {
+        String(target.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
     }
 
     func serializedForForwarding() -> Data {

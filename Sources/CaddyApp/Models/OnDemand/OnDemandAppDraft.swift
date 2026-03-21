@@ -142,9 +142,10 @@ struct OnDemandAppDraft: Identifiable, Hashable, Codable {
     func asProxyRoute(gatewayPort: UInt16) -> ProxyRoute {
         ProxyRoute(
             host: host,
-            upstream: "127.0.0.1:\(gatewayPort)",
+            upstream: "\(targetHost):\(targetPort)",
             source: .onDemand,
-            enabled: enabled
+            enabled: enabled,
+            onDemandPrepareEndpoint: "127.0.0.1:\(gatewayPort)"
         )
     }
 
