@@ -18,12 +18,16 @@ actor DashboardService {
         let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
         let discoveredMultipassServices = await onDemandAppsService.discoverMultipassServicesFromYAML()
+        let effectiveMultipassServices = mergedMultipassServices(
+            savedServices: appConfig.multipassServices,
+            discoveredServices: discoveredMultipassServices
+        )
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
             customRoutes: appConfig.customRoutes,
             onDemandApps: appConfig.onDemandApps,
-            multipassServices: appConfig.multipassServices
+            multipassServices: effectiveMultipassServices
         )
         var caddyInstall = installService.loadStatus()
         var tlsStatus = tlsService.status()
@@ -79,12 +83,16 @@ actor DashboardService {
         let appConfig = appConfigStore.load()
         let onDemandAppStatuses = await onDemandAppsService.statuses()
         let discoveredMultipassServices = await onDemandAppsService.discoverMultipassServicesFromYAML()
+        let effectiveMultipassServices = mergedMultipassServices(
+            savedServices: appConfig.multipassServices,
+            discoveredServices: discoveredMultipassServices
+        )
         let multipassServiceStatuses = await onDemandAppsService.multipassStatuses()
         let routes = configService.routes(
             runtimeTargets: runtimeTargets,
             customRoutes: appConfig.customRoutes,
             onDemandApps: appConfig.onDemandApps,
-            multipassServices: appConfig.multipassServices
+            multipassServices: effectiveMultipassServices
         )
         let configPreview = configService.preview(
             for: routes,
@@ -117,5 +125,21 @@ actor DashboardService {
             warnings: warnings,
             autoSetupReport: snapshot.autoSetupReport
         )
+    }
+
+    private func mergedMultipassServices(
+        savedServices: [MultipassServiceDraft],
+        discoveredServices: [MultipassServiceDraft]
+    ) -> [MultipassServiceDraft] {
+        var mergedByKey = Dictionary(uniqueKeysWithValues: discoveredServices.map { ($0.configurationKey, $0) })
+        for service in savedServices {
+            mergedByKey[service.configurationKey] = service
+        }
+        return mergedByKey.values.sorted {
+            if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
+                return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
+            }
+            return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+        }
     }
 }

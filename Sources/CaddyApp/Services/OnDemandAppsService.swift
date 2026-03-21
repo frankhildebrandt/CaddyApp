@@ -52,10 +52,14 @@ actor OnDemandAppsService {
 
     func reloadConfiguration() {
         let config = configStore.load()
+        let discoveredMultipassServices = discoverMultipassServicesFromYAML()
         let apps = config.onDemandApps
         appsByID = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
         appIDByHost = Dictionary(uniqueKeysWithValues: apps.map { (Self.normalizeHostKey($0.host), $0.id) })
-        let multipassServices = config.multipassServices
+        let multipassServices = mergedMultipassServices(
+            savedServices: config.multipassServices,
+            discoveredServices: discoveredMultipassServices
+        )
         multipassServicesByID = Dictionary(uniqueKeysWithValues: multipassServices.map { ($0.id, $0) })
 
         let validIDs = Set(apps.map(\.id))
@@ -103,6 +107,22 @@ actor OnDemandAppsService {
         }
 
         return discovered.sorted {
+            if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
+                return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
+            }
+            return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+        }
+    }
+
+    private func mergedMultipassServices(
+        savedServices: [MultipassServiceDraft],
+        discoveredServices: [MultipassServiceDraft]
+    ) -> [MultipassServiceDraft] {
+        var mergedByKey = Dictionary(uniqueKeysWithValues: discoveredServices.map { ($0.configurationKey, $0) })
+        for service in savedServices {
+            mergedByKey[service.configurationKey] = service
+        }
+        return mergedByKey.values.sorted {
             if $0.vmName.caseInsensitiveCompare($1.vmName) != .orderedSame {
                 return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
             }
