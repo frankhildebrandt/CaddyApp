@@ -25,35 +25,47 @@ struct MultipassDiscoveredServiceDetailView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Quelle") {
-                    LabeledContent("VM", value: sourceService.vmName)
-                    LabeledContent("Service", value: sourceService.serviceName)
-                    LabeledContent("Host-Vorschlag", value: sourceService.host)
-                    LabeledContent("Port", value: String(sourceService.targetPort))
-                }
-
-                Section("Routing") {
-                    Toggle("Aktiv", isOn: $draft.enabled)
-                    TextField("Host", text: $draft.host)
-                    TextField("Port", value: $draft.targetPort, formatter: multipassViewModel.integerFormatter)
-                    Picker("Scheme", selection: $draft.scheme) {
-                        Text("http").tag(MultipassServiceScheme.http)
-                        Text("https").tag(MultipassServiceScheme.https)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    GroupBox("Quelle") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            LabeledContent("VM", value: sourceService.vmName)
+                            LabeledContent("Service", value: sourceService.serviceName)
+                            LabeledContent("Host-Vorschlag", value: sourceService.host)
+                            LabeledContent("Port", value: String(sourceService.targetPort))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .pickerStyle(.segmented)
-                    TextField("Health Path", text: $draft.healthPath)
-                    TextField("Idle Timeout (s)", value: $draft.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
-                }
 
-                Section("Runtime") {
-                    Toggle("VM automatisch starten", isOn: $draft.autoStartVM)
-                    Toggle("VM automatisch stoppen", isOn: $draft.autoStopVM)
-                    TextField("systemd Unit", text: $draft.systemdUnit)
-                    Toggle("systemd automatisch starten", isOn: $draft.autoStartSystemd)
-                    Toggle("systemd automatisch stoppen", isOn: $draft.autoStopSystemd)
+                    GroupBox("Routing") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Aktiv", isOn: $draft.enabled)
+                            TextField("Host", text: $draft.host)
+                            TextField("Port", value: $draft.targetPort, formatter: multipassViewModel.integerFormatter)
+                            Picker("Scheme", selection: $draft.scheme) {
+                                Text("http").tag(MultipassServiceScheme.http)
+                                Text("https").tag(MultipassServiceScheme.https)
+                            }
+                            .pickerStyle(.segmented)
+                            TextField("Health Path", text: $draft.healthPath)
+                            TextField("Idle Timeout (s)", value: $draft.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    GroupBox("Runtime") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("VM automatisch starten", isOn: $draft.autoStartVM)
+                            Toggle("VM automatisch stoppen", isOn: $draft.autoStopVM)
+                            TextField("systemd Unit", text: $draft.systemdUnit)
+                            Toggle("systemd automatisch starten", isOn: $draft.autoStartSystemd)
+                            Toggle("systemd automatisch stoppen", isOn: $draft.autoStopSystemd)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
+            .padding(20)
             .navigationTitle(existingService == nil ? "Service konfigurieren" : "Service bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
