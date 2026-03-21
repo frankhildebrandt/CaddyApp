@@ -1,10 +1,17 @@
 import SwiftUI
 
 struct SettingsServicesPaneView: View {
+    private struct ServiceEditorContext: Identifiable {
+        let id = UUID()
+        let sourceService: MultipassServiceDraft
+        let existingService: MultipassServiceDraft?
+        let isDiscoveredSource: Bool
+    }
+
     let snapshot: DashboardSnapshot?
     @ObservedObject var dashboardViewModel: DashboardViewModel
     @ObservedObject var multipassViewModel: MultipassViewModel
-    @State private var selectedDiscoveredService: MultipassServiceDraft?
+    @State private var serviceEditorContext: ServiceEditorContext?
 
     var body: some View {
         ScrollView {
@@ -17,10 +24,11 @@ struct SettingsServicesPaneView: View {
             }
             .padding(.vertical, 4)
         }
-        .sheet(item: $selectedDiscoveredService) { service in
-            MultipassDiscoveredServiceDetailView(
-                sourceService: service,
-                existingService: dashboardViewModel.multipassServices.first(where: { $0.configurationKey == service.configurationKey }),
+        .sheet(item: $serviceEditorContext) { context in
+            MultipassServiceDetailView(
+                sourceService: context.sourceService,
+                existingService: context.existingService,
+                isDiscoveredSource: context.isDiscoveredSource,
                 dashboardViewModel: dashboardViewModel,
                 multipassViewModel: multipassViewModel
             )
@@ -31,20 +39,16 @@ struct SettingsServicesPaneView: View {
         let multipassTargets = snapshot.runtimeTargets.filter { $0.source == .multipass }
         let targetByName = Dictionary(uniqueKeysWithValues: multipassTargets.map { ($0.name, $0) })
         let statusesByID = Dictionary(uniqueKeysWithValues: snapshot.multipassServiceStatuses.map { ($0.id, $0) })
-        let discoveredByVM = Dictionary(grouping: snapshot.discoveredMultipassServices, by: { service in
-            let name = service.vmName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Unzugeordnet" : name
-        })
-        let servicesByVM = Dictionary(grouping: Array(dashboardViewModel.multipassServices.indices), by: { index in
-            let name = dashboardViewModel.multipassServices[index].vmName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Unzugeordnet" : name
-        })
+        let discoveredByVM = Dictionary(grouping: snapshot.discoveredMultipassServices, by: serviceVMGroupKey)
+        let configuredByVM = Dictionary(grouping: dashboardViewModel.multipassServices, by: serviceVMGroupKey)
+
         var vmNames = Set(multipassTargets.map(\.name))
-        vmNames.formUnion(servicesByVM.keys.filter { $0 != "Unzugeordnet" })
+        vmNames.formUnion(configuredByVM.keys.filter { $0 != "Unzugeordnet" })
         vmNames.formUnion(discoveredByVM.keys.filter { $0 != "Unzugeordnet" })
+
         let sortedVMNames = vmNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        let unassignedServiceIndices = servicesByVM["Unzugeordnet"] ?? []
-        let unassignedDiscoveredServices = discoveredByVM["Unzugeordnet"] ?? []
+        let unassignedConfigured = configuredByVM["Unzugeordnet"] ?? []
+        let unassignedDiscovered = discoveredByVM["Unzugeordnet"] ?? []
 
         return VStack(alignment: .leading, spacing: 16) {
             GroupBox("Service-Assistent") {
@@ -65,9 +69,9 @@ struct SettingsServicesPaneView: View {
                                 existingServices: dashboardViewModel.multipassServices
                             )
                             let draft = multipassViewModel.commitAssistant(existingServices: dashboardViewModel.multipassServices)
-                            dashboardViewModel.addMultipassService(draft)
+                            openEditor(sourceService: draft, existingService: nil, isDiscoveredSource: false)
                         } label: {
-                            Label("Vorschlag übernehmen", systemImage: "wand.and.stars")
+                            Label("Vorschlag konfigurieren", systemImage: "wand.and.stars")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(multipassViewModel.assistant.vmName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -92,34 +96,32 @@ struct SettingsServicesPaneView: View {
                                     vmName: vmName,
                                     target: targetByName[vmName],
                                     discoveredServices: discoveredByVM[vmName] ?? [],
-                                    serviceIndices: servicesByVM[vmName] ?? [],
+                                    configuredServices: configuredByVM[vmName] ?? [],
                                     statusesByID: statusesByID
                                 )
                             }
                         }
                     }
 
-                    if !unassignedServiceIndices.isEmpty {
-                        GroupBox("Nicht zugeordnete Services") {
+                    if !unassignedConfigured.isEmpty {
+                        GroupBox("Manuelle Services ohne VM") {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Diese Services haben keinen VM-Namen. Bitte VM setzen.")
+                                Text("Diese Services haben keinen VM-Namen. Bitte im Dialog vervollständigen.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                ForEach(unassignedServiceIndices, id: \.self) { index in
-                                    multipassServiceRow(at: index, vmName: nil, statusesByID: statusesByID)
-                                }
+                                configuredServicesList(unassignedConfigured, statusesByID: statusesByID)
                             }
                             .padding(.top, 4)
                         }
                     }
 
-                    if !unassignedDiscoveredServices.isEmpty {
+                    if !unassignedDiscovered.isEmpty {
                         GroupBox("Entdeckte YAML-Services ohne VM") {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Diese YAML-Services konnten keiner VM zugeordnet werden.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                discoveredServicesList(unassignedDiscoveredServices)
+                                discoveredServicesList(unassignedDiscovered)
                             }
                             .padding(.top, 4)
                         }
@@ -142,7 +144,7 @@ struct SettingsServicesPaneView: View {
         vmName: String,
         target: RuntimeTarget?,
         discoveredServices: [MultipassServiceDraft],
-        serviceIndices: [Int],
+        configuredServices: [MultipassServiceDraft],
         statusesByID: [UUID: MultipassServiceRuntimeStatus]
     ) -> some View {
         let vmState = target?.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "unknown"
@@ -205,11 +207,29 @@ struct SettingsServicesPaneView: View {
                 Spacer()
 
                 Button {
-                    dashboardViewModel.addMultipassService(forVMName: vmName)
+                    openEditor(
+                        sourceService: MultipassServiceDraft.defaultForVM(vmName, existingServices: dashboardViewModel.multipassServices),
+                        existingService: nil,
+                        isDiscoveredSource: false
+                    )
                 } label: {
                     Label("Service hinzufügen", systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Manuell konfiguriert")
+                    .font(.subheadline.weight(.semibold))
+                if configuredServices.isEmpty {
+                    Text("Noch keine manuell gespeicherten Services für diese VM.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    configuredServicesList(configuredServices, statusesByID: statusesByID)
+                }
             }
 
             Divider()
@@ -225,18 +245,6 @@ struct SettingsServicesPaneView: View {
                     discoveredServicesList(discoveredServices)
                 }
             }
-
-            Divider()
-
-            if serviceIndices.isEmpty {
-                Text("Noch keine Services für diese VM konfiguriert.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(serviceIndices, id: \.self) { index in
-                    multipassServiceRow(at: index, vmName: vmName, statusesByID: statusesByID)
-                }
-            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -250,97 +258,113 @@ struct SettingsServicesPaneView: View {
         )
     }
 
+    private func configuredServicesList(
+        _ services: [MultipassServiceDraft],
+        statusesByID: [UUID: MultipassServiceRuntimeStatus]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(services.sorted {
+                $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+            }, id: \.id) { service in
+                let runtimeStatus = statusesByID[service.id]
+                serviceListRow(
+                    service: service,
+                    badgeText: "Manuell",
+                    badgeColor: .blue,
+                    statusText: statusSummary(for: runtimeStatus)
+                ) {
+                    openEditor(sourceService: service, existingService: service, isDiscoveredSource: false)
+                } actions: {
+                    configuredServiceActions(for: service)
+                }
+            }
+        }
+    }
+
     private func discoveredServicesList(_ services: [MultipassServiceDraft]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(services.sorted {
                 $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
             }, id: \.configurationKey) { service in
                 let existingService = dashboardViewModel.multipassServices.first(where: { $0.configurationKey == service.configurationKey })
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(service.serviceName)
-                                .font(.subheadline.weight(.semibold))
-                            if existingService != nil {
-                                Text("Konfiguriert")
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.green.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-                        }
-                        Text("\(service.scheme.rawValue) • \(service.targetPort) • \(service.host)")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button(existingService == nil ? "Konfigurieren" : "Details") {
-                        selectedDiscoveredService = service
-                    }
-                    .buttonStyle(.bordered)
+                serviceListRow(
+                    service: service,
+                    badgeText: existingService == nil ? nil : "Konfiguriert",
+                    badgeColor: .green,
+                    statusText: nil
+                ) {
+                    openEditor(sourceService: service, existingService: existingService, isDiscoveredSource: true)
+                } actions: {
+                    EmptyView()
                 }
-                .padding(10)
-                .background(Color.secondary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
         }
     }
 
-    private func multipassServiceRow(
-        at index: Int,
-        vmName: String?,
-        statusesByID: [UUID: MultipassServiceRuntimeStatus]
+    private func serviceListRow<Actions: View>(
+        service: MultipassServiceDraft,
+        badgeText: String?,
+        badgeColor: Color,
+        statusText: String?,
+        openEditorAction: @escaping () -> Void,
+        @ViewBuilder actions: () -> Actions
     ) -> some View {
-        let serviceBinding = $dashboardViewModel.multipassServices[index]
-        let serviceID = serviceBinding.wrappedValue.id
-        let runtimeStatus = statusesByID[serviceID]
-
-        return VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                primaryServiceRowCompact(serviceBinding: serviceBinding, vmName: vmName)
-                primaryServiceRowStacked(serviceBinding: serviceBinding, vmName: vmName)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(service.serviceName)
+                            .font(.subheadline.weight(.semibold))
+                        if let badgeText {
+                            Text(badgeText)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(badgeColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text("\(service.scheme.rawValue) • \(service.targetPort) • \(service.host)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    if let statusText, !statusText.isEmpty {
+                        Text(statusText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer()
+                Button("Details") {
+                    openEditorAction()
+                }
+                .buttonStyle(.bordered)
             }
 
-            ViewThatFits(in: .horizontal) {
-                secondaryServiceRowCompact(serviceBinding: serviceBinding)
-                secondaryServiceRowStacked(serviceBinding: serviceBinding)
-            }
-
-            ViewThatFits(in: .horizontal) {
-                tertiaryServiceRowCompact(serviceBinding: serviceBinding)
-                tertiaryServiceRowStacked(serviceBinding: serviceBinding)
-            }
-
-            if let runtimeStatus {
-                Text("VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            actionsRow(for: serviceID, hasSystemdUnit: !serviceBinding.wrappedValue.systemdUnit.isEmpty)
-            Divider()
+            actions()
         }
+        .padding(10)
+        .background(Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
-    private func actionsRow(for serviceID: UUID, hasSystemdUnit: Bool) -> some View {
+    private func configuredServiceActions(for service: MultipassServiceDraft) -> some View {
+        let hasSystemdUnit = !service.systemdUnit.isEmpty
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                serviceActionButtons(serviceID: serviceID, hasSystemdUnit: hasSystemdUnit)
+                configuredServiceActionButtons(service: service, hasSystemdUnit: hasSystemdUnit)
             }
             VStack(alignment: .leading, spacing: 8) {
-                serviceActionButtons(serviceID: serviceID, hasSystemdUnit: hasSystemdUnit)
+                configuredServiceActionButtons(service: service, hasSystemdUnit: hasSystemdUnit)
             }
         }
     }
 
     @ViewBuilder
-    private func serviceActionButtons(serviceID: UUID, hasSystemdUnit: Bool) -> some View {
+    private func configuredServiceActionButtons(service: MultipassServiceDraft, hasSystemdUnit: Bool) -> some View {
         Button {
-            dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .start)
+            dashboardViewModel.controlMultipassService(serviceID: service.id, action: .start)
         } label: {
             Label("Start", systemImage: "play.circle.fill")
         }
@@ -349,7 +373,7 @@ struct SettingsServicesPaneView: View {
         .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
 
         Button {
-            dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stop)
+            dashboardViewModel.controlMultipassService(serviceID: service.id, action: .stop)
         } label: {
             Label("Stop", systemImage: "stop.circle.fill")
         }
@@ -359,7 +383,7 @@ struct SettingsServicesPaneView: View {
 
         if hasSystemdUnit {
             Button {
-                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .startSystemd)
+                dashboardViewModel.controlMultipassService(serviceID: service.id, action: .startSystemd)
             } label: {
                 Label("Start unit", systemImage: "bolt.circle")
             }
@@ -367,7 +391,7 @@ struct SettingsServicesPaneView: View {
             .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
 
             Button {
-                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .restartSystemd)
+                dashboardViewModel.controlMultipassService(serviceID: service.id, action: .restartSystemd)
             } label: {
                 Label("Restart unit", systemImage: "arrow.clockwise.circle")
             }
@@ -375,7 +399,7 @@ struct SettingsServicesPaneView: View {
             .disabled(dashboardViewModel.isChangingMultipassServiceRuntime)
 
             Button {
-                dashboardViewModel.controlMultipassService(serviceID: serviceID, action: .stopSystemd)
+                dashboardViewModel.controlMultipassService(serviceID: service.id, action: .stopSystemd)
             } label: {
                 Label("Stop unit", systemImage: "power.circle")
             }
@@ -384,7 +408,7 @@ struct SettingsServicesPaneView: View {
         }
 
         Button(role: .destructive) {
-            dashboardViewModel.removeMultipassService(id: serviceID)
+            dashboardViewModel.removeMultipassService(id: service.id)
         } label: {
             Image(systemName: "trash")
         }
@@ -446,137 +470,25 @@ struct SettingsServicesPaneView: View {
         }
     }
 
-    private func primaryServiceRowCompact(
-        serviceBinding: Binding<MultipassServiceDraft>,
-        vmName: String?
-    ) -> some View {
-        HStack {
-            Toggle("", isOn: serviceBinding.enabled)
-                .labelsHidden()
-                .toggleStyle(.checkbox)
-                if let vmName {
-                    Text(vmName)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(Capsule())
-                } else {
-                    TextField("VM", text: serviceBinding.vmName)
-                        .textFieldStyle(.roundedBorder)
-                }
-                TextField("Service", text: serviceBinding.serviceName)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Host", text: serviceBinding.host)
-                    .textFieldStyle(.roundedBorder)
-        }
+    private func serviceVMGroupKey(_ service: MultipassServiceDraft) -> String {
+        let name = service.vmName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "Unzugeordnet" : name
     }
 
-    private func primaryServiceRowStacked(
-        serviceBinding: Binding<MultipassServiceDraft>,
-        vmName: String?
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Toggle("", isOn: serviceBinding.enabled)
-                    .labelsHidden()
-                    .toggleStyle(.checkbox)
-                if let vmName {
-                    Text(vmName)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(Capsule())
-                } else {
-                    TextField("VM", text: serviceBinding.vmName)
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
-            TextField("Service", text: serviceBinding.serviceName)
-                .textFieldStyle(.roundedBorder)
-            TextField("Host", text: serviceBinding.host)
-                .textFieldStyle(.roundedBorder)
-        }
+    private func statusSummary(for runtimeStatus: MultipassServiceRuntimeStatus?) -> String? {
+        guard let runtimeStatus else { return nil }
+        return "VM: \(runtimeStatus.vmStatus) • systemd: \(runtimeStatus.systemdStatus) • phase: \(runtimeStatus.phase.label)"
     }
 
-    private func secondaryServiceRowCompact(
-        serviceBinding: Binding<MultipassServiceDraft>
-    ) -> some View {
-        HStack {
-            TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 90)
-            Picker("Scheme", selection: serviceBinding.scheme) {
-                Text("http").tag(MultipassServiceScheme.http)
-                Text("https").tag(MultipassServiceScheme.https)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 150)
-            Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
-                .toggleStyle(.checkbox)
-            Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
-                .toggleStyle(.checkbox)
-            TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 90)
-        }
-    }
-
-    private func secondaryServiceRowStacked(
-        serviceBinding: Binding<MultipassServiceDraft>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                TextField("Port", value: serviceBinding.targetPort, formatter: multipassViewModel.integerFormatter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 90)
-                Picker("Scheme", selection: serviceBinding.scheme) {
-                    Text("http").tag(MultipassServiceScheme.http)
-                    Text("https").tag(MultipassServiceScheme.https)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 150)
-                TextField("Idle s", value: serviceBinding.idleTimeoutSeconds, formatter: multipassViewModel.integerFormatter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 90)
-            }
-            HStack {
-                Toggle("AutoStart VM", isOn: serviceBinding.autoStartVM)
-                    .toggleStyle(.checkbox)
-                Toggle("AutoStop VM", isOn: serviceBinding.autoStopVM)
-                    .toggleStyle(.checkbox)
-            }
-        }
-    }
-
-    private func tertiaryServiceRowCompact(
-        serviceBinding: Binding<MultipassServiceDraft>
-    ) -> some View {
-        HStack {
-            TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
-                .textFieldStyle(.roundedBorder)
-            Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
-                .toggleStyle(.checkbox)
-            Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
-                .toggleStyle(.checkbox)
-        }
-    }
-
-    private func tertiaryServiceRowStacked(
-        serviceBinding: Binding<MultipassServiceDraft>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("systemd unit (optional)", text: serviceBinding.systemdUnit)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Toggle("AutoStart systemd", isOn: serviceBinding.autoStartSystemd)
-                    .toggleStyle(.checkbox)
-                Toggle("AutoStop systemd", isOn: serviceBinding.autoStopSystemd)
-                    .toggleStyle(.checkbox)
-            }
-        }
+    private func openEditor(
+        sourceService: MultipassServiceDraft,
+        existingService: MultipassServiceDraft?,
+        isDiscoveredSource: Bool
+    ) {
+        serviceEditorContext = ServiceEditorContext(
+            sourceService: sourceService,
+            existingService: existingService,
+            isDiscoveredSource: isDiscoveredSource
+        )
     }
 }

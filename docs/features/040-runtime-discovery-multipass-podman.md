@@ -53,6 +53,7 @@ Detect local workloads in Multipass and Podman and suggest reverse proxy routes 
 - YAML import only runs `multipass exec` against VMs that are already in `running` state, so app startup does not implicitly start stopped VMs.
 - Runtime-discovery shell calls now use hard timeouts so unavailable or wedged `multipass`/`podman` CLIs degrade to "no targets found" instead of stalling app startup indefinitely.
 - YAML-discovered Multipass services are now listed separately and only enter the generated Caddy routing after the user opens the service detail view and saves the configuration explicitly.
+- Manually added Multipass services now use the same list + detail-dialog flow as YAML-discovered services; inline editing in the VM card was removed.
 
 ## caddy-app.yaml Format
 
@@ -125,3 +126,4 @@ services:
 - 2026-03-21: Multipass service routes now use the discovered VM IP as direct Caddy upstream when available and keep the in-app gateway only as fallback for cold starts/unreachable targets.
 - 2026-03-21: Added hard timeouts for startup/runtime discovery shell commands so hung `multipass` or `podman` calls no longer leave the app loading forever.
 - 2026-03-21: Changed Multipass YAML discovery so services are listed first and only become part of the saved routing config after explicit confirmation in the detail view.
+- 2026-03-21: Reworked the Services UI so manual and YAML-discovered Multipass services both appear as list entries and are configured through the same detail dialog.
