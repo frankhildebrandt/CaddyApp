@@ -13,4 +13,6 @@ struct OnDemandAppRuntimeStatus: Identifiable, Hashable {
     var lastAccessAt: Date?
     var lastActionAt: Date?
     var lastError: String?
+    var coldStartCount: Int
+    var lastWarmupDurationMs: Int?
 }

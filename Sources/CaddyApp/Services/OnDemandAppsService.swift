@@ -4,7 +4,6 @@ import Network
 actor OnDemandAppsService {
     static let shared = OnDemandAppsService()
     static let gatewayPort: UInt16 = 49215
-    static let prepareEndpoint = "/__caddyapp/prepare"
     private static let maintenanceJobID = "on-demand.maintenance"
 
     private struct AppState {
@@ -12,6 +11,8 @@ actor OnDemandAppsService {
         var lastAccessAt: Date?
         var lastActionAt: Date?
         var lastError: String?
+        var coldStartCount: Int = 0
+        var lastWarmupDurationMs: Int?
     }
 
     private let runner = ShellCommandRunner()
@@ -88,7 +89,9 @@ actor OnDemandAppsService {
                     idleTimeoutSeconds: app.idleTimeoutSeconds,
                     lastAccessAt: state.lastAccessAt,
                     lastActionAt: state.lastActionAt,
-                    lastError: state.lastError
+                    lastError: state.lastError,
+                    coldStartCount: state.coldStartCount,
+                    lastWarmupDurationMs: state.lastWarmupDurationMs
                 )
             }
     }
@@ -326,9 +329,6 @@ actor OnDemandAppsService {
     }
 
     func handleProxyRequest(_ request: HTTPGatewayRequest) async -> HTTPGatewayResponse {
-        if request.path == Self.prepareEndpoint {
-            return await handlePrepareRequest(request)
-        }
         if request.headers.contains(where: { $0.0.caseInsensitiveCompare("Transfer-Encoding") == .orderedSame && $0.1.lowercased().contains("chunked") }) {
             return .text(status: 501, body: "Chunked request bodies are not supported by the on-demand gateway yet")
         }
@@ -339,38 +339,6 @@ actor OnDemandAppsService {
             return response
         case let .ready(backend):
             return await proxy(request, to: backend.upstream)
-        }
-    }
-
-    private func handlePrepareRequest(_ request: HTTPGatewayRequest) async -> HTTPGatewayResponse {
-        let originalHost = request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Host") == .orderedSame }?.1
-        guard let originalHost, !originalHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .text(status: 400, body: "Missing X-CaddyApp-Original-Host header")
-        }
-
-        let forwardedRequest = HTTPGatewayRequest(
-            method: request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Method") == .orderedSame }?.1 ?? request.method,
-            target: request.headers.first { $0.0.caseInsensitiveCompare("X-CaddyApp-Original-Uri") == .orderedSame }?.1 ?? "/",
-            version: request.version,
-            headers: [("Host", originalHost)],
-            body: Data()
-        )
-
-        switch await prepareAppForHTTP(forwardedRequest) {
-        case .ready:
-            return HTTPGatewayResponse(
-                statusCode: 204,
-                headers: [
-                    ("Content-Length", "0"),
-                    ("Connection", "close"),
-                    ("Cache-Control", "no-store")
-                ],
-                body: Data()
-            )
-        case let .waiting(response):
-            return response
-        case let .failure(response):
-            return response
         }
     }
 
@@ -405,14 +373,17 @@ actor OnDemandAppsService {
         state.phase = .starting
         state.lastActionAt = Date()
         state.lastError = nil
+        state.coldStartCount += 1
         states[appID] = state
 
+        let warmupStartedAt = Date()
         let startResult = start(app)
         if !startResult.succeeded {
             AppLogService.logError("On-demand start failed: app=\(app.name) error=\(startResult.message)")
             state.phase = .error
             state.lastActionAt = Date()
             state.lastError = startResult.message
+            state.lastWarmupDurationMs = Int(Date().timeIntervalSince(warmupStartedAt) * 1000)
             states[appID] = state
             return startResult
         }
@@ -428,6 +399,7 @@ actor OnDemandAppsService {
         state.phase = healthResult.succeeded ? .running : .error
         state.lastActionAt = Date()
         state.lastError = healthResult.succeeded ? nil : healthResult.message
+        state.lastWarmupDurationMs = Int(Date().timeIntervalSince(warmupStartedAt) * 1000)
         states[appID] = state
         return healthResult
     }
@@ -540,76 +512,6 @@ actor OnDemandAppsService {
         markBackendAccess(mapped)
         return .ready(backend)
     }
-
-    private func prepareAppForHTTP(_ request: HTTPGatewayRequest) async -> PreparedAppResult {
-        guard let host = request.host else {
-            return .failure(.text(status: 400, body: "Missing Host header"))
-        }
-        let hostKey = Self.normalizeHostKey(host)
-        guard let mapped = resolveBackend(forHost: hostKey) else {
-            return .failure(.text(status: 404, body: "Unknown on-demand app host: \(host)"))
-        }
-        guard mapped.isEnabled else {
-            return .failure(.text(status: 503, body: "On-demand app is disabled"))
-        }
-
-        AppLogService.logEvent("On-demand HTTP request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(mapped.name)")
-
-        switch mapped {
-        case let .onDemand(appID, app):
-            var state = states[appID] ?? AppState()
-            let runningCheck = isRunning(app)
-            if runningCheck.isRunning && state.phase != .starting {
-                state.lastAccessAt = Date()
-                state.lastActionAt = Date()
-                state.phase = .running
-                state.lastError = nil
-                states[appID] = state
-                return .ready(PreparedBackend(name: app.name, upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort)))
-            }
-
-            queueBackgroundStartIfNeeded(appID: appID)
-            state = states[appID] ?? state
-            state.phase = .starting
-            state.lastActionAt = Date()
-            states[appID] = state
-            return .waiting(waitingPageResponse(forName: app.name, host: app.host, runtime: app.runtime.label, unit: "\(app.unitKind.label): \(app.unitName)", target: "\(app.targetHost):\(app.targetPort)", phase: state.phase, statusCode: 503))
-        case let .multipass(serviceID, service):
-            var state = multipassStates[serviceID] ?? AppState()
-            if isMultipassServiceReady(serviceID: serviceID, service: service), state.phase != .starting {
-                let ipAddress = multipassVMIPv4Address(service.vmName) ?? ""
-                state.lastAccessAt = Date()
-                state.lastActionAt = Date()
-                state.phase = .running
-                state.lastError = nil
-                multipassStates[serviceID] = state
-                return .ready(
-                    PreparedBackend(
-                        name: "\(service.vmName)/\(service.serviceName)",
-                        upstream: UpstreamTarget(scheme: service.scheme, targetHost: ipAddress, targetPort: service.targetPort)
-                    )
-                )
-            }
-
-            queueBackgroundMultipassStartIfNeeded(serviceID: serviceID)
-            state = multipassStates[serviceID] ?? state
-            state.phase = .starting
-            state.lastActionAt = Date()
-            multipassStates[serviceID] = state
-            return .waiting(
-                waitingPageResponse(
-                    forName: service.serviceName,
-                    host: service.host,
-                    runtime: "Multipass",
-                    unit: service.systemdUnit.isEmpty ? "Service" : "systemd: \(service.systemdUnit)",
-                    target: "\(service.vmName):\(service.targetPort)",
-                    phase: state.phase,
-                    statusCode: 503
-                )
-            )
-        }
-    }
-
     private func queueBackgroundStartIfNeeded(appID: UUID) {
         guard startTasks[appID] == nil else { return }
         startTasks[appID] = Task { [weak self] in
@@ -858,6 +760,90 @@ actor OnDemandAppsService {
             state.lastActionAt = Date()
             state.phase = .running
             multipassStates[serviceID] = state
+        }
+    }
+
+    private func prepareAppForHTTP(_ request: HTTPGatewayRequest) async -> PreparedAppResult {
+        guard let host = request.host else {
+            return .failure(.text(status: 400, body: "Missing Host header"))
+        }
+        let hostKey = Self.normalizeHostKey(host)
+        guard let mapped = resolveBackend(forHost: hostKey) else {
+            return .failure(.text(status: 404, body: "Unknown on-demand app host: \(host)"))
+        }
+        guard mapped.isEnabled else {
+            return .failure(.text(status: 503, body: "On-demand app is disabled"))
+        }
+
+        AppLogService.logEvent("On-demand HTTP request: host=\(hostKey) method=\(request.method) target=\(request.target) app=\(mapped.name)")
+
+        switch mapped {
+        case let .onDemand(appID, app):
+            var state = states[appID] ?? AppState()
+            let runningCheck = isRunning(app)
+            if runningCheck.isRunning && state.phase != .starting {
+                state.lastAccessAt = Date()
+                state.lastActionAt = Date()
+                state.phase = .running
+                state.lastError = nil
+                states[appID] = state
+                return .ready(
+                    PreparedBackend(
+                        name: app.name,
+                        upstream: UpstreamTarget(scheme: .http, targetHost: app.targetHost, targetPort: app.targetPort)
+                    )
+                )
+            }
+
+            queueBackgroundStartIfNeeded(appID: appID)
+            state = states[appID] ?? state
+            state.phase = .starting
+            state.lastActionAt = Date()
+            states[appID] = state
+            return .waiting(
+                waitingPageResponse(
+                    forName: app.name,
+                    host: app.host,
+                    runtime: app.runtime.label,
+                    unit: "\(app.unitKind.label): \(app.unitName)",
+                    target: "\(app.targetHost):\(app.targetPort)",
+                    phase: state.phase,
+                    statusCode: 503
+                )
+            )
+        case let .multipass(serviceID, service):
+            var state = multipassStates[serviceID] ?? AppState()
+            if isMultipassServiceReady(serviceID: serviceID, service: service), state.phase != .starting {
+                let ipAddress = multipassVMIPv4Address(service.vmName) ?? ""
+                state.lastAccessAt = Date()
+                state.lastActionAt = Date()
+                state.phase = .running
+                state.lastError = nil
+                multipassStates[serviceID] = state
+                return .ready(
+                    PreparedBackend(
+                        name: "\(service.vmName)/\(service.serviceName)",
+                        upstream: UpstreamTarget(scheme: service.scheme, targetHost: ipAddress, targetPort: service.targetPort)
+                    )
+                )
+            }
+
+            queueBackgroundMultipassStartIfNeeded(serviceID: serviceID)
+            state = multipassStates[serviceID] ?? state
+            state.phase = .starting
+            state.lastActionAt = Date()
+            multipassStates[serviceID] = state
+            return .waiting(
+                waitingPageResponse(
+                    forName: service.serviceName,
+                    host: service.host,
+                    runtime: "Multipass",
+                    unit: service.systemdUnit.isEmpty ? "Service" : "systemd: \(service.systemdUnit)",
+                    target: "\(service.vmName):\(service.targetPort)",
+                    phase: state.phase,
+                    statusCode: 503
+                )
+            )
         }
     }
 
@@ -1511,11 +1497,6 @@ struct HTTPGatewayRequest {
         let connection = headers.first { $0.0.caseInsensitiveCompare("Connection") == .orderedSame }?.1.lowercased() ?? ""
         return upgrade == "websocket" && connection.contains("upgrade")
     }
-
-    var path: String {
-        String(target.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
-    }
-
     func serializedForForwarding() -> Data {
         var data = Data()
         data.append(Data("\(method) \(target) \(version)\r\n".utf8))

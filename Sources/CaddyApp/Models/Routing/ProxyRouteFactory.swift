@@ -10,7 +10,7 @@ enum ProxyRouteFactory {
     ) -> [ProxyRoute] {
         customRoutes.map { $0.asProxyRoute() }
             + onDemandApps.map { $0.asProxyRoute(gatewayPort: gatewayPort) }
-            + multipassServiceRoutes(from: multipassServices, gatewayPort: gatewayPort)
+            + multipassServiceRoutes(from: multipassServices, runtimeTargets: runtimeTargets, gatewayPort: gatewayPort)
             + multipassRoutes(from: runtimeTargets)
     }
 
@@ -39,14 +39,37 @@ enum ProxyRouteFactory {
             }
     }
 
-    private static func multipassServiceRoutes(from services: [MultipassServiceDraft], gatewayPort: UInt16) -> [ProxyRoute] {
-        services.flatMap { service in
-            let direct = service.asProxyRoute(gatewayPort: gatewayPort)
+    private static func multipassServiceRoutes(
+        from services: [MultipassServiceDraft],
+        runtimeTargets: [RuntimeTarget],
+        gatewayPort: UInt16
+    ) -> [ProxyRoute] {
+        let multipassIPsByVM = Dictionary(
+            uniqueKeysWithValues: runtimeTargets.compactMap { target -> (String, String)? in
+                guard target.source == .multipass, target.address != "(no ip)" else { return nil }
+                return (target.name.lowercased(), target.address)
+            }
+        )
+
+        return services.flatMap { service in
+            let direct: ProxyRoute
+            if let vmAddress = multipassIPsByVM[service.vmName.lowercased()] {
+                direct = ProxyRoute(
+                    host: service.host,
+                    upstream: "\(vmAddress):\(service.targetPort)",
+                    source: .multipassService,
+                    enabled: service.enabled,
+                    onDemandGatewayEndpoint: "127.0.0.1:\(gatewayPort)"
+                )
+            } else {
+                direct = service.asProxyRoute(gatewayPort: gatewayPort)
+            }
             let wildcard = ProxyRoute(
                 host: "*.\(service.host)",
                 upstream: direct.upstream,
                 source: .multipassService,
-                enabled: direct.enabled
+                enabled: direct.enabled,
+                onDemandGatewayEndpoint: direct.onDemandGatewayEndpoint
             )
             return [direct, wildcard]
         }

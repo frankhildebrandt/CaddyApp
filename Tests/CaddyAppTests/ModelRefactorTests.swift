@@ -84,7 +84,30 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertTrue(routes.contains { $0.host == "*.svc.vm.mp.localhost" })
     }
 
-    func testOnDemandProxyRouteUsesDirectUpstreamAndPrepareEndpoint() {
+    func testProxyRouteFactoryUsesDirectMultipassIPWhenAvailable() {
+        let routes = ProxyRouteFactory.build(
+            runtimeTargets: [
+                RuntimeTarget(name: "vm", source: .multipass, address: "10.0.0.5", status: "running")
+            ],
+            customRoutes: [],
+            onDemandApps: [],
+            multipassServices: [
+                MultipassServiceDraft(
+                    vmName: "vm",
+                    serviceName: "svc",
+                    host: "svc.vm.mp.localhost",
+                    targetPort: 8080
+                )
+            ],
+            gatewayPort: 49215
+        )
+
+        XCTAssertEqual(routes.count, 4)
+        XCTAssertTrue(routes.contains { $0.host == "svc.vm.mp.localhost" && $0.upstream == "10.0.0.5:8080" && $0.onDemandGatewayEndpoint == "127.0.0.1:49215" })
+        XCTAssertTrue(routes.contains { $0.host == "*.svc.vm.mp.localhost" && $0.upstream == "10.0.0.5:8080" && $0.onDemandGatewayEndpoint == "127.0.0.1:49215" })
+    }
+
+    func testOnDemandProxyRouteUsesDirectUpstreamAndGatewayFallback() {
         let routes = ProxyRouteFactory.build(
             runtimeTargets: [],
             customRoutes: [],
@@ -104,10 +127,10 @@ final class ModelRefactorTests: XCTestCase {
 
         XCTAssertEqual(routes.count, 1)
         XCTAssertEqual(routes[0].upstream, "127.0.0.1:3000")
-        XCTAssertEqual(routes[0].onDemandPrepareEndpoint, "127.0.0.1:49215")
+        XCTAssertEqual(routes[0].onDemandGatewayEndpoint, "127.0.0.1:49215")
     }
 
-    func testCaddyConfigWrapsOnDemandRoutesWithForwardAuthPrepareGate() {
+    func testCaddyConfigWrapsOnDemandRoutesWithGatewayFallbackProxy() {
         let preview = CaddyConfigService().preview(
             for: [
                 ProxyRoute(
@@ -115,15 +138,16 @@ final class ModelRefactorTests: XCTestCase {
                     upstream: "127.0.0.1:3000",
                     source: .onDemand,
                     enabled: true,
-                    onDemandPrepareEndpoint: "127.0.0.1:49215"
+                    onDemandGatewayEndpoint: "127.0.0.1:49215"
                 )
             ],
             additionalCaddyfileConfig: "",
             enableTraefikMeAliases: false
         )
 
-        XCTAssertTrue(preview.generatedCaddyfile.contains("forward_auth 127.0.0.1:49215"))
-        XCTAssertTrue(preview.generatedCaddyfile.contains("uri /__caddyapp/prepare"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("reverse_proxy 127.0.0.1:3000 127.0.0.1:49215"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("lb_policy first"))
+        XCTAssertTrue(preview.generatedCaddyfile.contains("dial_timeout 250ms"))
         XCTAssertTrue(preview.generatedCaddyfile.contains("reverse_proxy 127.0.0.1:3000"))
     }
 

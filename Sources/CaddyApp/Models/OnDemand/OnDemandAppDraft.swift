@@ -145,7 +145,7 @@ struct OnDemandAppDraft: Identifiable, Hashable, Codable {
             upstream: "\(targetHost):\(targetPort)",
             source: .onDemand,
             enabled: enabled,
-            onDemandPrepareEndpoint: "127.0.0.1:\(gatewayPort)"
+            onDemandGatewayEndpoint: "127.0.0.1:\(gatewayPort)"
         )
     }
 

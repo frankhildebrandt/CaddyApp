@@ -6,5 +6,5 @@ struct ProxyRoute: Identifiable, Hashable {
     var upstream: String
     var source: RuntimeSource
     var enabled: Bool
-    var onDemandPrepareEndpoint: String? = nil
+    var onDemandGatewayEndpoint: String? = nil
 }
