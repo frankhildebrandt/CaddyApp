@@ -1,0 +1,57 @@
+:root {
+  --sl-color-accent-low: #d7efe6;
+  --sl-color-accent: #1f6b53;
+  --sl-color-accent-high: #12382c;
+  --sl-color-text: #19332a;
+  --sl-color-text-accent: #0f5a44;
+  --sl-color-bg: #f7fbf9;
+  --sl-color-bg-nav: rgba(247, 251, 249, 0.92);
+  --sl-color-bg-sidebar: rgba(238, 246, 242, 0.96);
+  --sl-font: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+[data-theme="dark"] {
+  --sl-color-accent-low: #163328;
+  --sl-color-accent: #62c3a0;
+  --sl-color-accent-high: #d0f3e4;
+  --sl-color-text: #ebfff7;
+  --sl-color-text-accent: #8de5bf;
+  --sl-color-bg: #091612;
+  --sl-color-bg-nav: rgba(9, 22, 18, 0.94);
+  --sl-color-bg-sidebar: rgba(14, 30, 24, 0.96);
+}
+
+.hero {
+  background:
+    radial-gradient(circle at top left, rgba(31, 107, 83, 0.18), transparent 35%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(221, 241, 232, 0.92));
+  border: 1px solid rgba(31, 107, 83, 0.12);
+  border-radius: 24px;
+  padding: 1.5rem;
+}
+
+[data-theme="dark"] .hero {
+  background:
+    radial-gradient(circle at top left, rgba(98, 195, 160, 0.18), transparent 35%),
+    linear-gradient(135deg, rgba(15, 32, 26, 0.95), rgba(8, 20, 16, 0.95));
+  border-color: rgba(98, 195, 160, 0.18);
+}
+
+.quick-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 1.5rem;
+}
+
+.quick-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(31, 107, 83, 0.12);
+  border-radius: 20px;
+  padding: 1rem;
+}
+
+[data-theme="dark"] .quick-card {
+  background: rgba(16, 32, 27, 0.92);
+  border-color: rgba(98, 195, 160, 0.15);
+}

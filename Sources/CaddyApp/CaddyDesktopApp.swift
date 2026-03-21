@@ -24,6 +24,12 @@ struct CaddyDesktopApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
+        Window("Dokumentation", id: AppWindowController.documentationWindowID) {
+            DocumentationWindowView()
+                .frame(minWidth: 960, minHeight: 680)
+        }
+        .windowResizability(.contentSize)
+
         MenuBarExtra {
             MenuBarStatusView(
                 viewModel: viewModel,
@@ -40,10 +46,13 @@ struct CaddyDesktopApp: App {
         .commands {
             CommandMenu("CaddyApp") {
                 Button("Dashboard öffnen") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    NSApp.unhide(nil)
+                    AppWindowRouter.shared.openMainWindow()
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Button("Dokumentation öffnen (F1)") {
+                    AppWindowRouter.shared.openDocumentationWindow()
+                }
 
                 Button("Aktualisieren") {
                     viewModel.refresh()

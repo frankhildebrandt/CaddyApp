@@ -1,0 +1,15 @@
+{
+  "name": "caddyapp-docs",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node ./scripts/copy-repository.mjs",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.38.2",
+    "astro": "6.0.8"
+  }
+}

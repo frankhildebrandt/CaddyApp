@@ -38,7 +38,12 @@ struct MenuBarStatusView: View {
             Divider()
 
             Button("Dashboard öffnen") {
-                openWindow(id: AppWindowController.mainWindowID)
+                AppWindowRouter.shared.register(openWindowAction: openWindow)
+                AppWindowRouter.shared.openMainWindow()
+            }
+            Button("Dokumentation öffnen") {
+                AppWindowRouter.shared.register(openWindowAction: openWindow)
+                AppWindowRouter.shared.openDocumentationWindow()
             }
             Button("AppConfig öffnen") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)

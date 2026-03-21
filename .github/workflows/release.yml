@@ -57,3 +57,48 @@ jobs:
           asset_path: _build/release/CaddyApp.zip
           asset_name: CaddyApp.zip
           asset_content_type: application/zip
+
+  docs:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Install docs dependencies
+        run: npm --prefix docs ci
+
+      - name: Build Astro documentation
+        run: npm --prefix docs run build
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/dist
+
+      - name: Deploy pages
+        id: deployment
+        uses: actions/deploy-pages@v4

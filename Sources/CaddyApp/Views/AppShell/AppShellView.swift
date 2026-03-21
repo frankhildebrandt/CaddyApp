@@ -19,6 +19,7 @@ struct AppShellView: View {
             NavigationSplitView {
                 AppSidebarView(
                     selectedTab: $selectedTab,
+                    onOpenSupport: { AppWindowRouter.shared.openDocumentationWindow() },
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280)
@@ -74,6 +75,9 @@ struct AppShellView: View {
             viewModel.scheduleDraftAutoSave()
         }
         .background(MainWindowDelegateInstaller())
+        .overlay(alignment: .topLeading) {
+            DocumentationSceneBridge()
+        }
         .confirmationDialog(
             dialogTitle,
             isPresented: Binding(

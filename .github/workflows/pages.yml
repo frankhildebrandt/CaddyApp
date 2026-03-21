@@ -1,12 +1,6 @@
-name: Deploy Repository Feed to GitHub Pages
+name: Deploy Documentation to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - docs/repository/**
-      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
@@ -28,15 +22,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
+      - name: Install docs dependencies
+        run: npm --prefix docs ci
+
+      - name: Build Astro documentation
+        run: npm --prefix docs run build
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: docs/dist
 
       - name: Deploy
         id: deployment

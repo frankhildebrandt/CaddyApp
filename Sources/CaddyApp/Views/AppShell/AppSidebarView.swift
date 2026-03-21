@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppSidebarView: View {
     @Binding var selectedTab: AppSidebarTab?
+    let onOpenSupport: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
@@ -22,7 +23,7 @@ struct AppSidebarView: View {
             Spacer()
 
             VStack(spacing: 10) {
-                footerButton(title: "Support", systemImage: "questionmark.circle")
+                footerButton(title: "Support", systemImage: "questionmark.circle", action: onOpenSupport)
                 footerButton(title: "Einstellungen", systemImage: "gearshape", action: onOpenSettings)
             }
         }

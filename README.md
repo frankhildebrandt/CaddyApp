@@ -71,7 +71,9 @@ make release   # Release-Build + .app-Bundle
 make run       # App ueber SwiftPM starten
 make test      # Tests ausfuehren
 make check     # build + test
-make docs      # Feature-Dokumente auflisten
+make docs      # Astro-Dokumentation bauen
+make docs-dev  # Astro-Dokumentation lokal starten
+make docs-list # Feature-Dokumente auflisten
 ```
 
 Build-Artefakte:
@@ -92,8 +94,10 @@ Build-Artefakte:
 - `Sources/CaddyApp/Models/` - Domain-Modelle (one-type-per-file)
   - `Models/Config/`, `Models/Routing/`, `Models/OnDemand/`, `Models/Multipass/`
   - `Models/Repository/`, `Models/Caddy/`, `Models/TLS/`, `Models/Setup/`, `Models/Dashboard/`
-- `docs/features/` - Feature-Status und Fortschrittsdokumente
+- `docs/src/content/docs/` - veroeffentlichte Astro/Starlight-Nutzerdokumentation
+- `docs/features/` - interne Feature-Status- und Fortschrittsdokumente
 - `docs/repository/` - YAML-Feeds fuer Web-Repositories
+- `docs/scripts/` - Build-Helfer fuer die Dokumentationssite
 - `scripts/` - Build- und Automatisierungs-Skripte
 - `assets/` - App- und Systray-Grafiken
 
@@ -144,10 +148,12 @@ file CaddyApp.app/Contents/MacOS/CaddyApp
 
 ## Dokumentation
 
+- Verwendet Astro mit Starlight und wird aus `docs/` gebaut.
+- Veroeffentlichte Inhalte liegen unter `docs/src/content/docs/`.
+- Der YAML-Repository-Feed bleibt unter `docs/repository/` und wird in denselben statischen Output gespiegelt.
+- In der App ist die Dokumentation ueber den Support-Button und per `F1` erreichbar.
 - Projektueberblick: `docs/PROJECT.md`
-- Feature-Index: `docs/features/000-overview.md`
-- Feature-Details: `docs/features/*.md`
-- Repository-Feed-Doku: `docs/repository/README.md`
+- Interne Feature-Details: `docs/features/*.md`
 - Agent-Regeln: `AGENTS.md`
 
 ## Architektur-Hinweis (Model Refactor)

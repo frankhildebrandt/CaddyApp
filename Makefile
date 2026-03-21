@@ -14,7 +14,7 @@ SWIFT_TEST := $(SWIFT) test
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run release icon test clean reset fmt lint check docs open-package open-app
+.PHONY: help build run release icon test clean reset fmt lint check docs docs-install docs-dev docs-build docs-preview docs-list open-package open-app
 
 help: ## Zeigt verfuegbare Ziele
 	@awk 'BEGIN {FS = ":.*## "; printf "\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -71,7 +71,21 @@ lint: ## Basischecks fuer Swift-Code (Build als Mindest-Lint)
 check: build ## Build + Tests als Sammelziel
 	$(MAKE) test
 
-docs: ## Feature-Dokumente auflisten
+docs: docs-build ## Astro-Dokumentation bauen
+
+docs-install: ## Doku-Abhaengigkeiten installieren
+	npm --prefix docs install
+
+docs-dev: ## Astro-Dokumentation lokal starten
+	npm --prefix docs run dev
+
+docs-build: ## Astro-Dokumentation bauen
+	npm --prefix docs run build
+
+docs-preview: ## Gebaute Astro-Dokumentation lokal previewen
+	npm --prefix docs run preview
+
+docs-list: ## Feature-Dokumente auflisten
 	@find docs/features -maxdepth 1 -type f | sort
 
 open-package: ## Package in Xcode oeffnen

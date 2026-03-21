@@ -35,6 +35,10 @@ final class OnDemandViewModel: ObservableObject {
 
     func removeOnDemandAppAndUpdateSelection(viewModel: DashboardViewModel, id: UUID) {
         viewModel.removeOnDemandApp(id: id)
+        onDemandHostLogByAppID.removeValue(forKey: id)
+        onDemandContainerLogByAppID.removeValue(forKey: id)
+        onDemandEventLogByAppID.removeValue(forKey: id)
+        onDemandLoadingByAppID.removeValue(forKey: id)
         if selectedOnDemandAppID == id {
             selectedOnDemandAppID = nil
         }
@@ -67,3 +71,4 @@ final class OnDemandViewModel: ObservableObject {
         }
     }
 }
+
