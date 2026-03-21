@@ -279,6 +279,31 @@ final class ModelRefactorTests: XCTestCase {
         XCTAssertNil(coordinator.activeDialog)
     }
 
+    @MainActor
+    func testOnDemandBindingSurvivesDeletingLastApp() throws {
+        let viewModel = DashboardViewModel(dashboardService: DashboardService())
+        let onDemandViewModel = OnDemandViewModel()
+        let app = OnDemandAppDraft(
+            name: "Grafana",
+            unitName: "grafana",
+            host: "grafana.localhost",
+            targetPort: 3000,
+            runArguments: "run"
+        )
+        viewModel.onDemandApps = [app]
+
+        let binding = try XCTUnwrap(onDemandViewModel.bindingForOnDemandApp(viewModel: viewModel, id: app.id))
+        onDemandViewModel.selectedOnDemandAppID = app.id
+        onDemandViewModel.onDemandHostLogByAppID[app.id] = "log"
+
+        onDemandViewModel.removeOnDemandAppAndUpdateSelection(viewModel: viewModel, id: app.id)
+
+        XCTAssertEqual(binding.wrappedValue.id, app.id)
+        XCTAssertTrue(viewModel.onDemandApps.isEmpty)
+        XCTAssertNil(onDemandViewModel.selectedOnDemandAppID)
+        XCTAssertNil(onDemandViewModel.onDemandHostLogByAppID[app.id])
+    }
+
     func testMultipassAssistantBuildsSuggestedService() {
         let assistant = MultipassServiceAssistantDraft(
             vmName: "Dev VM",

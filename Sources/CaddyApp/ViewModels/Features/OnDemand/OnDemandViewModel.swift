@@ -27,21 +27,32 @@ final class OnDemandViewModel: ObservableObject {
 
     func bindingForOnDemandApp(viewModel: DashboardViewModel, id: UUID) -> Binding<OnDemandAppDraft>? {
         guard let index = viewModel.onDemandApps.firstIndex(where: { $0.id == id }) else { return nil }
+        var cachedApp = viewModel.onDemandApps[index]
         return Binding(
-            get: { viewModel.onDemandApps[index] },
-            set: { viewModel.onDemandApps[index] = $0 }
+            get: {
+                if let currentIndex = viewModel.onDemandApps.firstIndex(where: { $0.id == id }) {
+                    cachedApp = viewModel.onDemandApps[currentIndex]
+                }
+                return cachedApp
+            },
+            set: { updatedApp in
+                cachedApp = updatedApp
+                guard let currentIndex = viewModel.onDemandApps.firstIndex(where: { $0.id == id }) else { return }
+                viewModel.onDemandApps[currentIndex] = updatedApp
+            }
         )
     }
 
     func removeOnDemandAppAndUpdateSelection(viewModel: DashboardViewModel, id: UUID) {
-        viewModel.removeOnDemandApp(id: id)
+        if selectedOnDemandAppID == id {
+            onDemandShellSession.stop()
+            selectedOnDemandAppID = nil
+        }
         onDemandHostLogByAppID.removeValue(forKey: id)
         onDemandContainerLogByAppID.removeValue(forKey: id)
         onDemandEventLogByAppID.removeValue(forKey: id)
         onDemandLoadingByAppID.removeValue(forKey: id)
-        if selectedOnDemandAppID == id {
-            selectedOnDemandAppID = nil
-        }
+        viewModel.removeOnDemandApp(id: id)
     }
 
     func loadOnDemandSubTab(tab: OnDemandSubTab, app: OnDemandAppDraft, viewModel: DashboardViewModel) {
@@ -71,4 +82,3 @@ final class OnDemandViewModel: ObservableObject {
         }
     }
 }
-

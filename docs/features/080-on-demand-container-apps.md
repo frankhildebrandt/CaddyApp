@@ -70,3 +70,4 @@ Allow users to define Podman/Docker apps that start automatically when their con
 - 2026-03-02: Reduced CLI logging noise: command lines are now only written when spawn/exit errors occur.
 - 2026-03-04: Added authentik preset (local catalog + YAML repository) based on upstream docker-compose translated to a Podman pod (`server`, `worker`, `postgres`, `redis`).
 - 2026-03-21: Reworked on-demand app routing so Caddy now sends steady-state traffic directly to the backend and only falls back to the in-app gateway when the target is not reachable yet, removing the app process from the normal request hot path.
+- 2026-03-21: Fixed a UI freeze when deleting the last On-Demand app by clearing the detail selection before mutating the array and by hardening the detail binding against stale indices.
