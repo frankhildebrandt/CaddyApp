@@ -9,22 +9,12 @@ struct AppHeaderView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CaddyApp")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppChrome.primaryText)
-                Text("Lokale Infrastruktur, Runtime und Routing in einem flüssigen Workspace.")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppChrome.secondaryText)
-            }
-
-            Spacer(minLength: 18)
+            Spacer(minLength: 0)
 
             headerActions
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 10)
-        .padding(.bottom, 18)
+        .padding(.top, 2)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder

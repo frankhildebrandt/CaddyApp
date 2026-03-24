@@ -6,18 +6,7 @@ struct AppSidebarView: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Workspace")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppChrome.primaryText)
-                Text("Navigation, Support und App-Steuerung in einer ruhigen Liquid-Sidebar.")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppChrome.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 10)
-
+        VStack(alignment: .leading, spacing: 10) {
             List(selection: $selectedTab) {
                 Section("Start") {
                     sidebarItem(for: .overview)
@@ -41,7 +30,8 @@ struct AppSidebarView: View {
             }
             .padding(.horizontal, 10)
         }
-        .padding(16)
+        .padding(.top, 0)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
