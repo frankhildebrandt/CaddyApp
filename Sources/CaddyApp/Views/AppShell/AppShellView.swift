@@ -9,110 +9,113 @@ struct AppShellView: View {
     @State private var selectedTab: AppSidebarTab? = .overview
 
     var body: some View {
-        ZStack {
-            AppAmbientBackground()
+        GeometryReader { proxy in
+            let topInset = max(proxy.safeAreaInsets.top, 18)
 
-            NavigationSplitView {
-                AppSidebarView(
-                    selectedTab: $selectedTab,
-                    onOpenSupport: { AppWindowRouter.shared.openDocumentationWindow() },
-                    onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
-                )
-                .padding(.leading, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 18)
-                .navigationSplitViewColumnWidth(min: 230, ideal: 280)
-            } detail: {
-                VStack(spacing: 0) {
-                    AppHeaderView(
-                        isLoading: viewModel.isLoading,
-                        runtimeStatusText: runtimeStatusText,
-                        syncStatusText: viewModel.repositorySyncStatusText,
-                        onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
-                        onRefresh: viewModel.refresh
+            ZStack {
+                AppAmbientBackground()
+                    .ignoresSafeArea()
+
+                NavigationSplitView {
+                    AppSidebarView(
+                        selectedTab: $selectedTab,
+                        onOpenSupport: { AppWindowRouter.shared.openDocumentationWindow() },
+                        onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                     )
-
-                    detailContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .fill(AppChrome.panelFill)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                .stroke(AppChrome.border, lineWidth: 1)
+                    .padding(.leading, 18)
+                    .padding(.top, topInset + 10)
+                    .padding(.bottom, 18)
+                    .navigationSplitViewColumnWidth(min: 230, ideal: 280)
+                } detail: {
+                    VStack(spacing: 0) {
+                        AppHeaderView(
+                            isLoading: viewModel.isLoading,
+                            runtimeStatusText: runtimeStatusText,
+                            syncStatusText: viewModel.repositorySyncStatusText,
+                            onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
+                            onRefresh: viewModel.refresh
                         )
-                        .shadow(color: AppChrome.shadow, radius: 22, x: 0, y: 14)
-                )
-                .padding(.top, 18)
-                .padding(.trailing, 18)
-                .padding(.bottom, 18)
-                .ignoresSafeArea(edges: .top)
+
+                        detailContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 34, style: .continuous)
+                            .fill(AppChrome.panelFill)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                    .stroke(AppChrome.border, lineWidth: 1)
+                            )
+                            .shadow(color: AppChrome.shadow, radius: 22, x: 0, y: 14)
+                    )
+                    .padding(.top, topInset + 10)
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 18)
+                }
             }
-        }
-        .ignoresSafeArea(.all)
-        .navigationSplitViewStyle(.balanced)
-        .onAppear {
-            viewModel.refreshIfNeeded()
-        }
-        .onChange(of: viewModel.customRoutes) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.onDemandApps) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.multipassServices) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.appRepositories) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.enableTraefikMeAliases) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.hideWindowToMenuBarOnClose) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.repositoryAutoUpdateEnabled) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .onChange(of: viewModel.repositoryAutoUpdateIntervalHours) { _, _ in
-            viewModel.scheduleDraftAutoSave()
-        }
-        .background(MainWindowDelegateInstaller())
-        .overlay(alignment: .topLeading) {
-            DocumentationSceneBridge()
-        }
-        .confirmationDialog(
-            dialogTitle,
-            isPresented: Binding(
-                get: { presentationCoordinator.activeDialog != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        presentationCoordinator.dismissDialog()
+            .navigationSplitViewStyle(.balanced)
+            .onAppear {
+                viewModel.refreshIfNeeded()
+            }
+            .onChange(of: viewModel.customRoutes) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.onDemandApps) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.multipassServices) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.appRepositories) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.enableTraefikMeAliases) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.hideWindowToMenuBarOnClose) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.repositoryAutoUpdateEnabled) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .onChange(of: viewModel.repositoryAutoUpdateIntervalHours) { _, _ in
+                viewModel.scheduleDraftAutoSave()
+            }
+            .background(MainWindowDelegateInstaller())
+            .overlay(alignment: .topLeading) {
+                DocumentationSceneBridge()
+            }
+            .confirmationDialog(
+                dialogTitle,
+                isPresented: Binding(
+                    get: { presentationCoordinator.activeDialog != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            presentationCoordinator.dismissDialog()
+                        }
+                    }
+                ),
+                titleVisibility: .visible,
+                presenting: presentationCoordinator.activeDialog
+            ) { dialog in
+                switch dialog {
+                case .caddyUpdate:
+                    Button("Update via Homebrew") {
+                        viewModel.updateCaddy()
+                    }
+                case .reloadConfig:
+                    Button("Schreiben und Reload ausführen") {
+                        viewModel.reloadCaddy()
                     }
                 }
-            ),
-            titleVisibility: .visible,
-            presenting: presentationCoordinator.activeDialog
-        ) { dialog in
-            switch dialog {
-            case .caddyUpdate:
-                Button("Update via Homebrew") {
-                    viewModel.updateCaddy()
+                Button("Abbrechen", role: .cancel) {
+                    presentationCoordinator.dismissDialog()
                 }
-            case .reloadConfig:
-                Button("Schreiben und Reload ausführen") {
-                    viewModel.reloadCaddy()
-                }
+            } message: { dialog in
+                Text(dialogMessage(dialog))
             }
-            Button("Abbrechen", role: .cancel) {
-                presentationCoordinator.dismissDialog()
-            }
-        } message: { dialog in
-            Text(dialogMessage(dialog))
         }
     }
 
