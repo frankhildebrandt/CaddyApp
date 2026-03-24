@@ -41,15 +41,6 @@ struct AppShellView: View {
                             .padding(.horizontal, 20)
                             .padding(.bottom, 20)
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 34, style: .continuous)
-                            .fill(AppChrome.panelFill)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                    .stroke(AppChrome.border, lineWidth: 1)
-                            )
-                            .shadow(color: AppChrome.shadow, radius: 22, x: 0, y: 14)
-                    )
                     .padding(.top, shellTopPadding)
                     .padding(.trailing, 18)
                     .padding(.bottom, 18)

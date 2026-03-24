@@ -43,7 +43,6 @@ struct AppSidebarView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .appGlassCard(cornerRadius: 30, fill: AppChrome.sidebarFill, prominent: true)
     }
 
     private func sidebarItem(for tab: AppSidebarTab) -> some View {
