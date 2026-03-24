@@ -10,7 +10,7 @@ CaddyApp zeigt betriebliche Informationen direkt in der Oberfläche:
 - Runtime-Status von Caddy
 - Repository-Sync-Status
 - Discovery-Warnungen für Multipass, Podman oder Docker
-- Live-Logs mit begrenztem sichtbarem Zeilenfenster
+- Live-Logs mit Tail-Viewport, Live-Append und Nachladen aelterer Zeilen beim Hochscrollen
 
 ## Wichtige Monitoring-Bereiche
 
