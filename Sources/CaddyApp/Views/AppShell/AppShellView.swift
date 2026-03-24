@@ -10,7 +10,7 @@ struct AppShellView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let topInset = max(proxy.safeAreaInsets.top, 18)
+            let shellTopPadding = max(8, min(proxy.safeAreaInsets.top * 0.18, 14))
 
             ZStack {
                 AppAmbientBackground()
@@ -23,7 +23,7 @@ struct AppShellView: View {
                         onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                     )
                     .padding(.leading, 18)
-                    .padding(.top, topInset + 10)
+                    .padding(.top, shellTopPadding)
                     .padding(.bottom, 18)
                     .navigationSplitViewColumnWidth(min: 230, ideal: 280)
                 } detail: {
@@ -50,7 +50,7 @@ struct AppShellView: View {
                             )
                             .shadow(color: AppChrome.shadow, radius: 22, x: 0, y: 14)
                     )
-                    .padding(.top, topInset + 10)
+                    .padding(.top, shellTopPadding)
                     .padding(.trailing, 18)
                     .padding(.bottom, 18)
                 }
