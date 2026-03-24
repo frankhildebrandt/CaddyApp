@@ -33,18 +33,20 @@ struct AppShellView: View {
                             syncStatusText: viewModel.repositorySyncStatusText,
                             onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
                             onRefresh: viewModel.refresh
-                        )
+                        ).padding(.trailing, 10)
 
                         detailContent
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             .padding(.horizontal, 20)
                             .padding(.bottom, 20)
                     }
+                    .background(Color.clear)
                     .padding(.top, shellTopPadding)
                     .padding(.trailing, 0)
                     .padding(.bottom, 0)
                 }
             }
+            .background(Color.clear)
             .navigationSplitViewStyle(.balanced)
             .onAppear {
                 viewModel.refreshIfNeeded()

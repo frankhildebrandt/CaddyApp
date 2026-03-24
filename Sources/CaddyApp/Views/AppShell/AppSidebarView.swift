@@ -33,6 +33,15 @@ struct AppSidebarView: View {
         .padding(.top, 0)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.35))
+                        .frame(width: 1)
+                }
+        )
     }
 
     private func sidebarItem(for tab: AppSidebarTab) -> some View {
