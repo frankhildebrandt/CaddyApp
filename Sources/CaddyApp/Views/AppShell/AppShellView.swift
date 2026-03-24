@@ -9,12 +9,8 @@ struct AppShellView: View {
     @State private var selectedTab: AppSidebarTab? = .overview
 
     var body: some View {
-        ZStack{
-            LinearGradient(
-                colors: [AppChrome.canvasTop, AppChrome.canvasBottom],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        ZStack {
+            AppAmbientBackground()
 
             NavigationSplitView {
                 AppSidebarView(
@@ -22,10 +18,11 @@ struct AppShellView: View {
                     onOpenSupport: { AppWindowRouter.shared.openDocumentationWindow() },
                     onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
                 )
+                .padding(.leading, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 18)
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280)
-            }
-            
-            detail: {
+            } detail: {
                 VStack(spacing: 0) {
                     AppHeaderView(
                         isLoading: viewModel.isLoading,
@@ -34,15 +31,25 @@ struct AppShellView: View {
                         onOpenSettings: { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) },
                         onRefresh: viewModel.refresh
                     )
-                    
-                    ZStack {
-                        detailContent
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    }
-                    .padding(.horizontal, 22)
-                }
-                .ignoresSafeArea(edges: .top)
 
+                    detailContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .fill(AppChrome.panelFill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                .stroke(AppChrome.border, lineWidth: 1)
+                        )
+                        .shadow(color: AppChrome.shadow, radius: 22, x: 0, y: 14)
+                )
+                .padding(.top, 18)
+                .padding(.trailing, 18)
+                .padding(.bottom, 18)
+                .ignoresSafeArea(edges: .top)
             }
         }
         .ignoresSafeArea(.all)
@@ -167,7 +174,15 @@ struct AppShellView: View {
                 MonitoringWorkspaceView(snapshot: nil, viewModel: viewModel)
             }
         } else {
-            Text("No data loaded yet")
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Noch keine Daten geladen")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppChrome.primaryText)
+                Text("Lade den ersten Snapshot, um Runtime, Routing und Monitoring im neuen Workspace sichtbar zu machen.")
+                    .foregroundStyle(AppChrome.secondaryText)
+            }
+            .padding(28)
+            .appGlassCard(cornerRadius: 28, fill: AppChrome.panelFill)
         }
     }
 }

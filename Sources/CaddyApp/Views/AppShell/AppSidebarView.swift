@@ -6,7 +6,18 @@ struct AppSidebarView: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Workspace")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppChrome.primaryText)
+                Text("Navigation, Support und App-Steuerung in einer ruhigen Liquid-Sidebar.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppChrome.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10)
+
             List(selection: $selectedTab) {
                 Section("Start") {
                     sidebarItem(for: .overview)
@@ -18,7 +29,9 @@ struct AppSidebarView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
             .listStyle(.sidebar)
+            .background(.clear)
 
             Spacer()
 
@@ -26,10 +39,11 @@ struct AppSidebarView: View {
                 footerButton(title: "Support", systemImage: "questionmark.circle", action: onOpenSupport)
                 footerButton(title: "Einstellungen", systemImage: "gearshape", action: onOpenSettings)
             }
+            .padding(.horizontal, 10)
         }
-        .padding(.top, 4).padding(.trailing, 4)
+        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        //.background(AppChrome.sidebarFill.opacity(0.82))
+        .appGlassCard(cornerRadius: 30, fill: AppChrome.sidebarFill, prominent: true)
     }
 
     private func sidebarItem(for tab: AppSidebarTab) -> some View {
@@ -39,7 +53,8 @@ struct AppSidebarView: View {
                 .foregroundStyle(AppChrome.primaryText)
                 .padding(.leading, 6)
         }
-        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 8))
+        .listRowBackground(Color.white.opacity(0.14))
+        .listRowInsets(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 8))
     }
 
     private func footerButton(title: String, systemImage: String, action: (() -> Void)? = nil) -> some View {
@@ -55,11 +70,8 @@ struct AppSidebarView: View {
             }
             .foregroundStyle(AppChrome.secondaryText)
             .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.78))
-            )
+            .frame(height: 38)
+            .appGlassCard(cornerRadius: 16, fill: AppChrome.tileSoftFill)
         }
         .buttonStyle(.plain)
     }

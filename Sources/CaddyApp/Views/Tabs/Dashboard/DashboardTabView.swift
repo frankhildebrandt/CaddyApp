@@ -72,14 +72,7 @@ struct DashboardTabView: View {
             }
         }
         .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Color.white.opacity(0.88))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(Color.white.opacity(0.92), lineWidth: 1)
-        )
+        .appGlassCard(cornerRadius: 28, fill: AppChrome.panelFill, prominent: true)
     }
 
     private var warningSection: some View {
@@ -102,10 +95,7 @@ struct DashboardTabView: View {
             }
             .padding(22)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.9))
-        )
+        .appGlassCard(cornerRadius: 24, fill: AppChrome.tileSoftFill)
     }
 
     private var setupSection: some View {
@@ -145,10 +135,7 @@ struct DashboardTabView: View {
             }
             .padding(22)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.9))
-        )
+        .appGlassCard(cornerRadius: 24, fill: AppChrome.tileSoftFill)
     }
 
     private var isCertificateValid: Bool {
@@ -186,10 +173,7 @@ struct DashboardTabView: View {
                 }
             }
             .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white.opacity(0.9))
-            )
+            .appGlassCard(cornerRadius: 24, fill: AppChrome.tileSoftFill)
         }
     }
 
@@ -261,14 +245,7 @@ struct DashboardTabView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(AppChrome.tileSoftFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.9), lineWidth: 1)
-            )
+            .appGlassCard(cornerRadius: 18, fill: AppChrome.tileSoftFill)
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -300,10 +277,7 @@ struct DashboardTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.88))
-        )
+        .appGlassCard(cornerRadius: 20, fill: AppChrome.tileSoftFill)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(color.opacity(0.18), lineWidth: 1.2)
@@ -329,10 +303,7 @@ struct DashboardTabView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.88))
-        )
+        .appGlassCard(cornerRadius: 18, fill: AppChrome.tileSoftFill)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(tone.opacity(0.16), lineWidth: 1)
@@ -354,14 +325,7 @@ struct DashboardTabView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
         .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(AppChrome.tileFill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.88), lineWidth: 1)
-        )
+        .appGlassCard(cornerRadius: 22, fill: AppChrome.tileFill)
     }
 
     private func runtimeDashboardURL(for target: RuntimeTarget) -> URL? {

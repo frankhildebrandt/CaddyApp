@@ -14,6 +14,7 @@ Der Schwerpunkt liegt auf `*.localhost`-Reverse-Proxy-Workflows, automatisierter
 ## Funktionsumfang
 
 - SwiftUI-App mit task-orientierter Hauptnavigation und Menubar/Systray-Integration
+- Liquid-inspirierte App-Shell mit transparenter Sidebar, Header-Chips und glasartigen Panel-Flaechen
 - App-Settings via macOS-Standard `Apple-,` sowie globales App-Menue (`CaddyApp`)
 - Konfigurationsverwaltung als zentrale `AppConfig` in den CaddyApp Settings
 - Automatischer GH-Pages-Feed-Sync fuer On-Demand-Presets
