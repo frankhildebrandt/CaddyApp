@@ -68,6 +68,8 @@ Wichtige Make-Targets:
 make help      # Targets anzeigen
 make build     # Debug-Build + .app-Bundle
 make release   # Release-Build + .app-Bundle
+make production # Universal Production-Build + ZIP
+make dmg       # DMG mit Hintergrundbild + Programme-Link
 make run       # App ueber SwiftPM starten
 make test      # Tests ausfuehren
 make check     # build + test
@@ -80,6 +82,9 @@ Build-Artefakte:
 
 - Debug: `_build/debug/CaddyApp.app`
 - Release: `_build/release/CaddyApp.app`
+- Production: `_build/production/CaddyApp.app`
+- Production ZIP: `_build/production/CaddyApp.zip`
+- DMG: `_build/production/CaddyApp.dmg`
 
 ## Projektstruktur
 
@@ -129,6 +134,15 @@ Details siehe:
 GitHub-Releases triggern den Build-Workflow in `.github/workflows/release.yml`.
 Dabei wird ein Release-Build erstellt, als macOS-App gebuendelt und als ZIP-Artefakt angehaengt.
 Der Release-Build wird als Universal-Binary (`arm64` + `x86_64`) erzeugt.
+
+Fuer lokale Distributionsartefakte:
+
+```bash
+make production
+make dmg
+```
+
+Das DMG enthaelt ein Hintergrundbild sowie einen `Applications`-Ordner-Link fuer den ueblichen Drag-and-Drop-Installationspfad.
 
 ### Release-App lokal starten (Download von GitHub)
 
