@@ -69,6 +69,8 @@ Wichtige Make-Targets:
 make help      # Targets anzeigen
 make build     # Debug-Build + .app-Bundle
 make release   # Release-Build + .app-Bundle
+make production # Universal Production-Build + ZIP
+make dmg       # DMG mit Hintergrundbild + Programme-Link
 make run       # App ueber SwiftPM starten
 make test      # Tests ausfuehren
 make check     # build + test
@@ -81,6 +83,9 @@ Build-Artefakte:
 
 - Debug: `_build/debug/CaddyApp.app`
 - Release: `_build/release/CaddyApp.app`
+- Production: `_build/production/CaddyApp.app`
+- Production ZIP: `_build/production/CaddyApp.zip`
+- DMG: `_build/production/CaddyApp.dmg`
 
 ## Projektstruktur
 
@@ -131,6 +136,15 @@ GitHub-Releases triggern den Build-Workflow in `.github/workflows/release.yml`.
 Dabei wird ein Release-Build erstellt, als macOS-App gebuendelt und als ZIP-Artefakt angehaengt.
 Der Release-Build wird als Universal-Binary (`arm64` + `x86_64`) erzeugt.
 
+Fuer lokale Distributionsartefakte:
+
+```bash
+make production
+make dmg
+```
+
+Das DMG enthaelt ein Hintergrundbild sowie einen `Applications`-Ordner-Link fuer den ueblichen Drag-and-Drop-Installationspfad.
+
 ### Release-App lokal starten (Download von GitHub)
 
 Nach dem Entpacken kann macOS die App beim ersten Start blockieren (Gatekeeper/Quarantine).
@@ -162,4 +176,5 @@ file CaddyApp.app/Contents/MacOS/CaddyApp
 - Business-Logik (Validierung, Normalisierung, Mapping/Factory-Regeln) liegt in `Models/**`.
 - `ViewModels` halten UI-Zustand und orchestrieren Services.
 - `Services` kapseln IO/Systemintegration (Shell, Netzwerk, Filesystem) und vermeiden fachliche Duplikation.
+- UI-nahe Mutation und Systemdialoge laufen auf dem `MainActor`; wiederkehrende Hintergrundarbeit wird zentral ueber `InternalScheduler` und explizite Cancellation gesteuert.
 - Persistierte Einstellungen laufen ueber `AppConfig`; Legacy-`CustomConfigSettings` werden beim Laden migriert.

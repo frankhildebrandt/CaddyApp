@@ -2,9 +2,10 @@ import AppKit
 import Foundation
 
 struct PrivilegedCommandRunner:  Sendable {
+    @MainActor
     func runWithAdministratorPrivileges(_ command: String, prompt: String? = nil) -> CommandResult {
         let script = appleScriptForShellCommand(command, prompt: prompt)
-        return executeAppleScript(script)
+        return executeAppleScriptOnCurrentThread(script)
     }
 
     private func appleScriptForShellCommand(_ command: String, prompt: String?) -> String {
@@ -20,18 +21,6 @@ struct PrivilegedCommandRunner:  Sendable {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-    }
-
-    private func executeAppleScript(_ source: String) -> CommandResult {
-        if Thread.isMainThread {
-            return executeAppleScriptOnCurrentThread(source)
-        }
-
-        var result: CommandResult?
-        DispatchQueue.main.sync {
-            result = executeAppleScriptOnCurrentThread(source)
-        }
-        return result ?? CommandResult(exitCode: 1, stdout: "", stderr: "Failed to execute AppleScript")
     }
 
     private func executeAppleScriptOnCurrentThread(_ source: String) -> CommandResult {

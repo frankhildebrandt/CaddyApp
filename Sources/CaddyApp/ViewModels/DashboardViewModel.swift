@@ -66,6 +66,7 @@ final class DashboardViewModel: ObservableObject {
     private var refreshPendingAfterRuntimeChange = false
     private var hasLoadedRepositoryPresets = false
     private var activeRefreshToken: UUID?
+    private var refreshTimeoutTask: Task<Void, Never>?
 
     init(
         dashboardService: DashboardService,
@@ -104,6 +105,7 @@ final class DashboardViewModel: ObservableObject {
 
     deinit {
         let ownedScheduler = scheduler
+        refreshTimeoutTask?.cancel()
         Task {
             await ownedScheduler.cancelAll()
         }
@@ -124,23 +126,30 @@ final class DashboardViewModel: ObservableObject {
         lastError = nil
         let refreshToken = UUID()
         activeRefreshToken = refreshToken
+        refreshTimeoutTask?.cancel()
+        refreshTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: Self.refreshTimeoutNanoseconds)
+            } catch {
+                return
+            }
+            guard let self else { return }
+            guard self.activeRefreshToken == refreshToken, self.isLoading else { return }
+            self.isLoading = false
+            self.lastError = "Snapshot-Ladevorgang dauert zu lange. Bitte erneut aktualisieren."
+            AppLogService.logError("Dashboard snapshot refresh timed out after \(Self.refreshTimeoutNanoseconds / 1_000_000_000)s")
+        }
 
         Task { [weak self] in
             guard let self else { return }
-            Task { [weak self] in
-                try? await Task.sleep(nanoseconds: Self.refreshTimeoutNanoseconds)
-                guard let self else { return }
-                guard self.activeRefreshToken == refreshToken, self.isLoading else { return }
-                self.isLoading = false
-                self.lastError = "Snapshot-Ladevorgang dauert zu lange. Bitte erneut aktualisieren."
-                AppLogService.logError("Dashboard snapshot refresh timed out after \(Self.refreshTimeoutNanoseconds / 1_000_000_000)s")
-            }
             self.refreshLogs()
             let previousSnapshot = self.snapshot
             let wasInitialLoad = !self.hasLoaded
             let snapshot = await dashboardService.loadSnapshot()
             guard self.activeRefreshToken == refreshToken else { return }
             self.activeRefreshToken = nil
+            self.refreshTimeoutTask?.cancel()
+            self.refreshTimeoutTask = nil
             self.snapshot = snapshot
             self.isLoading = false
             self.lastError = nil
@@ -968,6 +977,9 @@ final class DashboardViewModel: ObservableObject {
         let snapshot = await dashboardService.loadSnapshot()
         self.snapshot = snapshot
         self.hasLoaded = true
+        self.activeRefreshToken = nil
+        self.refreshTimeoutTask?.cancel()
+        self.refreshTimeoutTask = nil
         self.startRuntimePollingIfNeeded()
     }
 

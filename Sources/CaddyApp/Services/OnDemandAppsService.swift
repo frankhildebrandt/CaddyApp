@@ -63,6 +63,7 @@ actor OnDemandAppsService {
         multipassServicesByID = Dictionary(uniqueKeysWithValues: multipassServices.map { ($0.id, $0) })
 
         let validIDs = Set(apps.map(\.id))
+        cancelObsoleteStartTasks(validIDs: validIDs)
         states = states.filter { validIDs.contains($0.key) }
         startTasks = startTasks.filter { validIDs.contains($0.key) }
         for app in apps where states[app.id] == nil {
@@ -70,6 +71,7 @@ actor OnDemandAppsService {
         }
 
         let validMultipassIDs = Set(multipassServices.map(\.id))
+        cancelObsoleteMultipassStartTasks(validIDs: validMultipassIDs)
         multipassStates = multipassStates.filter { validMultipassIDs.contains($0.key) }
         multipassStartTasks = multipassStartTasks.filter { validMultipassIDs.contains($0.key) }
         multipassSystemdStatusByID = multipassSystemdStatusByID.filter { validMultipassIDs.contains($0.key) }
@@ -127,6 +129,18 @@ actor OnDemandAppsService {
                 return $0.vmName.localizedCaseInsensitiveCompare($1.vmName) == .orderedAscending
             }
             return $0.serviceName.localizedCaseInsensitiveCompare($1.serviceName) == .orderedAscending
+        }
+    }
+
+    private func cancelObsoleteStartTasks(validIDs: Set<UUID>) {
+        for (id, task) in startTasks where !validIDs.contains(id) {
+            task.cancel()
+        }
+    }
+
+    private func cancelObsoleteMultipassStartTasks(validIDs: Set<UUID>) {
+        for (id, task) in multipassStartTasks where !validIDs.contains(id) {
+            task.cancel()
         }
     }
 

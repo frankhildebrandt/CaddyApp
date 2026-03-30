@@ -3,9 +3,7 @@ import Foundation
 struct LocalhostTLSService: Sendable {
     func trustLocalCAWithSystemPromptAsync() async -> SetupOperationResult {
         let service = self
-        return await Task.detached(priority: .userInitiated) {
-            service.trustLocalCAWithSystemPrompt()
-        }.value
+        return await service.trustLocalCAWithSystemPrompt()
     }
 
 
@@ -29,7 +27,7 @@ struct LocalhostTLSService: Sendable {
         )
     }
 
-    func trustLocalCAWithSystemPrompt() -> SetupOperationResult {
+    func trustLocalCAWithSystemPrompt() async -> SetupOperationResult {
         let caddyPath = ShellCommandRunner().runShell("command -v caddy").stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !caddyPath.isEmpty else {
@@ -45,10 +43,12 @@ struct LocalhostTLSService: Sendable {
         let escapedCaddyPath = caddyPath.replacingOccurrences(of: "'", with: "'\\''")
         let privilegedCommand = "'\(escapedCaddyPath)' trust"
 
-        let result = privilegedRunner.runWithAdministratorPrivileges(
-            privilegedCommand,
-            prompt: "CaddyApp needs permission to trust Caddy's local root certificate in the macOS system keychain."
-        )
+        let result = await MainActor.run {
+            privilegedRunner.runWithAdministratorPrivileges(
+                privilegedCommand,
+                prompt: "CaddyApp needs permission to trust Caddy's local root certificate in the macOS system keychain."
+            )
+        }
 
         let output = [result.stdout, result.stderr]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

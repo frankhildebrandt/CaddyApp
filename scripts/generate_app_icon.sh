@@ -35,11 +35,16 @@ trap cleanup EXIT INT TERM
 ICONSET_DIR="$TMP_DIR/AppIcon.iconset"
 mkdir -p "$ICONSET_DIR"
 
-qlmanage -t -s 1024 -o "$TMP_DIR" "$SRC_SVG" >/dev/null 2>&1
+qlmanage -t -s 1024 -o "$TMP_DIR" "$SRC_SVG" >/dev/null 2>&1 || true
 MASTER_PNG="$TMP_DIR/$(basename "$SRC_SVG").png"
 
 if [ ! -f "$MASTER_PNG" ]; then
-  echo "Failed to render SVG preview via qlmanage" >&2
+  if [ -f "$OUT_ICNS" ] && [ -f "$OUT_PREVIEW" ]; then
+    echo "Skipping icon regeneration; using existing assets" >&2
+    exit 0
+  fi
+
+  echo "Failed to render SVG preview via qlmanage and no existing icon assets found" >&2
   exit 1
 fi
 

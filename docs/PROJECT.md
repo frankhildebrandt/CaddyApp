@@ -32,6 +32,8 @@ Dieses Dokument beschreibt die interne Repo- und Prozesssicht. Die veröffentlic
 
 - `make build` baut die macOS-App
 - `make release` baut das Release-Bundle
+- `make production` baut die universelle Distributions-App inkl. ZIP
+- `make dmg` erzeugt ein Installer-DMG mit Hintergrundbild und `Applications`-Link
 - `make check` führt Build und Tests aus
 - `make docs-install` installiert Doku-Abhängigkeiten
 - `make docs-build` baut die Starlight-Dokumentation
