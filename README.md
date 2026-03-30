@@ -161,4 +161,5 @@ file CaddyApp.app/Contents/MacOS/CaddyApp
 - Business-Logik (Validierung, Normalisierung, Mapping/Factory-Regeln) liegt in `Models/**`.
 - `ViewModels` halten UI-Zustand und orchestrieren Services.
 - `Services` kapseln IO/Systemintegration (Shell, Netzwerk, Filesystem) und vermeiden fachliche Duplikation.
+- UI-nahe Mutation und Systemdialoge laufen auf dem `MainActor`; wiederkehrende Hintergrundarbeit wird zentral ueber `InternalScheduler` und explizite Cancellation gesteuert.
 - Persistierte Einstellungen laufen ueber `AppConfig`; Legacy-`CustomConfigSettings` werden beim Laden migriert.

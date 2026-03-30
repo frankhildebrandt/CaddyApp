@@ -12,6 +12,17 @@ final class OnDemandEmbeddedShellSession: ObservableObject {
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
     private var currentAppID: UUID?
+    private var activeSessionID = UUID()
+
+    deinit {
+        let process = process
+        let stdoutPipe = stdoutPipe
+        let stderrPipe = stderrPipe
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
+        process?.terminationHandler = nil
+        process?.terminate()
+    }
 
     func restart(for app: OnDemandAppDraft) {
         stop()
@@ -29,6 +40,8 @@ final class OnDemandEmbeddedShellSession: ObservableObject {
         statusMessage = "Shell wird gestartet..."
         output = ""
         currentAppID = app.id
+        let sessionID = UUID()
+        activeSessionID = sessionID
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -46,7 +59,8 @@ final class OnDemandEmbeddedShellSession: ObservableObject {
             guard !data.isEmpty else { return }
             guard let text = String(data: data, encoding: .utf8) else { return }
             Task { @MainActor [weak self] in
-                self?.appendOutput(text)
+                guard let self, self.activeSessionID == sessionID else { return }
+                self.appendOutput(text)
             }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -54,17 +68,24 @@ final class OnDemandEmbeddedShellSession: ObservableObject {
             guard !data.isEmpty else { return }
             guard let text = String(data: data, encoding: .utf8) else { return }
             Task { @MainActor [weak self] in
-                self?.appendOutput(text)
+                guard let self, self.activeSessionID == sessionID else { return }
+                self.appendOutput(text)
             }
         }
 
         process.terminationHandler = { [weak self] terminatedProcess in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard self.activeSessionID == sessionID else { return }
                 self.isRunning = false
                 self.isStarting = false
                 self.statusMessage = "Shell beendet (Exit \(terminatedProcess.terminationStatus))."
                 self.cleanupReadabilityHandlers()
+                self.process?.terminationHandler = nil
+                self.process = nil
+                self.stdinPipe = nil
+                self.stdoutPipe = nil
+                self.stderrPipe = nil
             }
         }
 
@@ -106,8 +127,10 @@ final class OnDemandEmbeddedShellSession: ObservableObject {
     }
 
     func stop() {
+        activeSessionID = UUID()
         guard let process else { return }
         cleanupReadabilityHandlers()
+        process.terminationHandler = nil
         process.terminate()
         self.process = nil
         stdinPipe = nil
