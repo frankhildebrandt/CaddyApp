@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LogsTabView: View {
+    @ObservedObject var viewModel: DashboardViewModel
     @StateObject private var logViewModel = LogViewportViewModel()
     private let logBottomAnchor = "logs-bottom"
     @State private var isNearBottom = true
@@ -150,6 +151,11 @@ struct LogsTabView: View {
                 logViewModel.startLiveWatch()
             } else {
                 logViewModel.stopLiveWatch()
+            }
+        }
+        .onChange(of: viewModel.logReloadTrigger) { _, _ in
+            Task {
+                await logViewModel.reloadTail()
             }
         }
     }

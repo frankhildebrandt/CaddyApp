@@ -17,7 +17,7 @@ struct MonitoringWorkspaceView: View {
             }
 
                 GroupBox("Logs") {
-                LogsTabView()
+                LogsTabView(viewModel: viewModel)
                     .padding(.top, 4)
             }
         }
