@@ -51,6 +51,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var repositoryAutoUpdateIntervalHours: Int
     @Published private(set) var lastSuccessfulRepositorySyncAt: Date?
     @Published private(set) var lastRepositorySyncError: String?
+    @Published private(set) var logReloadTrigger: Int = 0
 
     private let dashboardService: DashboardService
     nonisolated private let configLifecycleService: CaddyConfigLifecycleService
@@ -154,6 +155,7 @@ final class DashboardViewModel: ObservableObject {
             self.isLoading = false
             self.lastError = nil
             self.hasLoaded = true
+            self.logReloadTrigger &+= 1
             self.startRuntimePollingIfNeeded()
             self.startRepositoryAutoSyncIfNeeded()
             if !self.hasLoadedRepositoryPresets {
@@ -343,6 +345,7 @@ final class DashboardViewModel: ObservableObject {
             self.lastRepositorySyncResult = sync.result
             self.isRefreshingAppRepositories = false
             self.hasLoadedRepositoryPresets = true
+            self.logReloadTrigger &+= 1
             self.applyRepositorySyncResult(sync.result, trigger: trigger)
         }
     }
