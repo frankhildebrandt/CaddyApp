@@ -97,10 +97,12 @@ struct AppShellView: View {
                     Button("Update via Homebrew") {
                         viewModel.updateCaddy()
                     }
+                    .keyboardShortcut(.return, modifiers: .command)
                 case .reloadConfig:
                     Button("Schreiben und Reload ausführen") {
                         viewModel.reloadCaddy()
                     }
+                    .keyboardShortcut(.return, modifiers: .command)
                 }
                 Button("Abbrechen", role: .cancel) {
                     presentationCoordinator.dismissDialog()
